@@ -1,38 +1,174 @@
+/* General App Styles */
 .App {
   text-align: center;
+  font-family: 'Quicksand', sans-serif; /* Consistent with your header font */
+  background: #f0f0f0; /* A light grey background for contrast */
+  color: #333; /* Dark grey color for text for better readability */
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
+/* Header Styles - Assuming you have a header */
 .App-header {
   background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  padding: 20px 0; /* Adjust padding for a better layout */
   font-size: calc(10px + 2vmin);
   color: white;
 }
 
+/* Link Styles */
 .App-link {
   color: #61dafb;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+/* Registration Form Styles */
+.registration-form {
+  max-width: 500px; /* Set a max width for the form */
+  margin: 30px auto; /* Center the form with margin */
+  padding: 40px; /* Padding inside the form */
+  background: white; /* White background for the form */
+  border-radius: 8px; /* Rounded corners for the form */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+}
+
+.registration-form h2 {
+  margin-bottom: 20px; /* Space below the header */
+  color: #333; /* Dark text for the header */
+}
+
+/* Style for form inputs */
+.registration-form input {
+  width: calc(100% - 20px); /* Full width inputs */
+  padding: 10px; /* Padding inside inputs */
+  margin-bottom: 15px; /* Space between inputs */
+  border: 1px solid #ddd; /* Subtle border for inputs */
+  border-radius: 4px; /* Slightly rounded corners for inputs */
+}
+
+/* Style for the submit button */
+.registration-form button {
+  width: 100%;
+  padding: 10px;
+  background-color: #61dafb; /* Use the same color as your link for consistency */
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 16px; /* Larger font size for better readability */
+  cursor: pointer; /* Cursor indicates the button is clickable */
+  transition: background-color 0.3s; /* Smooth transition for hover effect */
+}
+
+.registration-form button:hover {
+  background-color: #4095c6; /* Darker shade on hover for the button */
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+  .registration-form {
+    width: 90%; /* Make the form wider on smaller screens */
+    margin: 20px auto; /* Adjust margin on smaller screens */
   }
-  to {
-    transform: rotate(360deg);
-  }
+}
+
+/* Container for the form and the image panel */
+.registration-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* Registration form panel */
+.registration-panel {
+  flex: 1;
+  max-width: 400px; /* Limit the width of the form */
+  margin: 0 20px;
+}
+
+/* Image panel */
+.image-panel {
+  flex: 1;
+  margin: 0 20px;
+  border-radius: 8px; /* Optional: if you want rounded corners */
+  overflow: hidden; /* Ensures the border radius clips the image */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: adds shadow for depth */
+}
+
+/* Including the image */
+.image-panel img {
+  width: 100%;
+  height: auto; /* Maintain aspect ratio */
+  display: block; /* Remove any extra space below the image */
+}
+
+.login-layout {
+  display: flex;
+}
+.image-uploader {
+  font-family: 'Quicksand', sans-serif;
+  background-color: #f4f4f4;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.image-uploader h2 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.file-input {
+  border: 2px solid #ddd;
+  padding: 5px;
+  border-radius: 5px;
+}
+
+.submit-button {
+  background-color: #008cba;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.submit-button:hover {
+  background-color: #005f73;
+}
+
+.login-form {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.form-container {
+  /* Style for the form container */
+  margin: 0 20px; /* Adjust margin as needed */
+}
+
+.image-panel {
+  /* Style for image containers */
+  flex: 1;
+}
+.register-link {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.register-link a {
+  color: #007bff; /* Or any color that matches your design */
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.register-link a:hover {
+  text-decoration: underline;
 }
