@@ -55,7 +55,8 @@ const LoginForm = () => {
           if (data.success) {
             setMessage("Login successful");
             setType("success");
-            navigate('/feed', { state: { userId: data.userId } }); // Update for v6
+            navigate('/userlist', { state: { userId: data.userId } }); // Update for v6
+            //navigate('/feed', { state: { userId: data.userId } }); // Update for v6
           } else {
             setMessage(data.message || "Login failed");
             setType("error");

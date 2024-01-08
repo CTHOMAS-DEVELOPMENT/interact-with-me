@@ -109,6 +109,16 @@ app.post("/api/register", async (req, res) => {
       handleDatabaseError(error, res);
     }
   });
+  app.get('/api/users', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT id, username, email FROM users');
+      res.json(result.rows);
+    } catch (error) {
+      console.error(error);
+      res.status(500).send({ message: 'An error occurred.' });
+    }
+  });
+  
 app.post(
   "/api/users/:userId/profile-picture",
   upload.single("file"),
@@ -168,6 +178,16 @@ app.get("/api/users/:userId/posts", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send("Server error occurred while fetching posts.");
+  }
+});
+app.get('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT id, username, email, profile_picture FROM users WHERE id = $1', [id]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: 'An error occurred.' });
   }
 });
 

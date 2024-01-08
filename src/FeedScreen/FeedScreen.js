@@ -6,6 +6,11 @@ const FeedScreen = () => {
   const [posts, setPosts] = useState([]);
   const location = useLocation();
   const userId = location.state ? location.state.userId : null;
+  const selectedUser = location.state ? location.state.selectedUser : null;
+  console.log("FeedScreen-selectedUser",selectedUser)
+  console.log("FeedScreen-userId",userId)
+  //A new Interaction must have user_id INTEGER NOT NULL, interaction_id INTEGER NOT NULL, name VARCHAR(255)
+  //This screen is blank and at the start of a message with a title
   const fetchPosts = () => {
     if (userId) {
       fetch(`/api/users/${userId}/posts`)
@@ -14,15 +19,7 @@ const FeedScreen = () => {
         .catch((error) => console.error("Error fetching posts:", error));
     }
   };
-//   useEffect(() => {
-//     // Fetch combined posts using the userId
-//     if (userId) {
-//       fetch(`/api/users/${userId}/posts`)
-//         .then((response) => response.json())
-//         .then((data) => setPosts(data))
-//         .catch((error) => console.error("Error fetching posts:", error));
-//     }
-//   }, [userId]);
+
   useEffect(() => {
     if (userId) {
       fetchPosts();
@@ -34,7 +31,7 @@ const FeedScreen = () => {
       {userId && (
         <>
           <TextEntry userId={userId} onPostSubmit={fetchPosts} />
-          <PhotoUploadAndEdit userId={userId} />
+          <PhotoUploadAndEdit userId={userId} onPhotoSubmit={fetchPosts} />
         </>
       )}
       {/* List of combined posts *New**/}
@@ -43,7 +40,7 @@ const FeedScreen = () => {
           {post.type === "text" ? (
             <p>{post.content}</p>
           ) : (
-            <img src={`http://localhost:3002${post.content}`} alt="User Post" />
+            <img src={`${process.env.REACT_APP_IMAGE_HOST}${post.content}`} alt="User Post" />
           )}
         </div>
       ))}

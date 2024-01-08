@@ -135,7 +135,7 @@ const RegistrationForm = () => {
       {uploadedImageUrl && (
         <div className="uploaded-image">
           <img
-            src={`http://${DOMAIN_NAME}/uploaded-images/${uploadedImageUrl
+            src={`${process.env.REACT_APP_IMAGE_HOST}/uploaded-images/${uploadedImageUrl
               .split("\\")
               .pop()}`}
             alt="Uploaded Profile"
