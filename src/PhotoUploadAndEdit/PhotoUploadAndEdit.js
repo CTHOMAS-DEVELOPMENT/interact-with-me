@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const PhotoUploadAndEdit = ({ userId, onPhotoSubmit }) => {
+const PhotoUploadAndEdit = ({ userId, submissionId, onPhotoSubmit }) => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -17,8 +17,8 @@ const PhotoUploadAndEdit = ({ userId, onPhotoSubmit }) => {
     const handleSave = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
-  
-      fetch(`/api/users/${userId}/uploaded-item`, {
+      formData.append('userId', userId);
+      fetch(`/api/users/${submissionId}/uploaded-item`, {
         method: 'POST',
         body: formData,
       })
