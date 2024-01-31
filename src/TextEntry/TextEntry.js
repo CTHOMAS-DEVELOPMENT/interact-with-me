@@ -11,6 +11,7 @@ const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
     }
 
     try {
+      console.log('text-entry userId passed',userId);
         const response = await fetch(`/api/users/${submissionId}/text-entry`, {
             method: "POST",
             headers: {

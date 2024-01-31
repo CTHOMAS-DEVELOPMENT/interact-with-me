@@ -5,18 +5,28 @@ const NewSubmission = () => {
   const [title, setTitle] = useState("");
 
   const location = useLocation();
-  //      state: { selectedUser: userId, userId: loggedInUserId }, // Passing loggedInUserId to NewSubmission
-
   const loggedInUserId = location.state?.userId;
   const selectedUser = location.state?.selectedUser;
-  console.log("selectedUser", selectedUser);
-  console.log("loggedInUserId", loggedInUserId);
+  const selectedUserIds = location.state?.selectedUserIds;
+  //console.log("selectedUserIds", selectedUserIds);
   const navigate = useNavigate();
-
+  const handleBackToMessagesClick = () => {
+    navigate("/userlist", { state: { userId: loggedInUserId } }); // Update for v6
+  };
   const handleSave = () => {
+    let userIds = [loggedInUserId]; // Start with logged-in user
+
+    // If selectedUserIds is populated (and is an array), add it to userIds;
+    // otherwise, add selectedUser (if it's not null)
+    if (Array.isArray(selectedUserIds) && selectedUserIds.length > 0) {
+      userIds = [...userIds, ...selectedUserIds];
+    } else if (selectedUser) {
+      userIds.push(selectedUser);
+    }
     const submissionData = {
       user_id: loggedInUserId,
       title: title,
+      userIds: userIds,
     };
     // POST request to backend to save data
     fetch("/api/user_submissions", {
@@ -34,16 +44,14 @@ const NewSubmission = () => {
         }
       })
       .then((data) => {
-        console.log("data", data);
-
         navigate("/feed", {
-            state: {
-              submissionId: data.id,
-              userId: data.user_id,
-              title: data.title,
-              selectedUser: selectedUser,
-            },
-          });
+          state: {
+            submissionId: data.id,
+            userId: data.user_id,
+            title: data.title,
+            selectedUser: selectedUser,
+          },
+        });
       })
       .catch((error) => {
         console.error("Error saving submission:", error);
@@ -52,6 +60,7 @@ const NewSubmission = () => {
 
   return (
     <div>
+      <button onClick={handleBackToMessagesClick}>Back to messages</button>{" "}
       <h2>Create New Submission</h2>
       <input
         type="text"

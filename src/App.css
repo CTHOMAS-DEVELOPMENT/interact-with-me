@@ -172,3 +172,55 @@
 .register-link a:hover {
   text-decoration: underline;
 }
+
+.fontHeader {
+  font-family: "Quicksand", sans-serif;
+  font-weight: 600;
+}
+input {
+  font-family: "Quicksand", sans-serif;
+  font-weight: 400; 
+  /* Additional styling for the input fields like border, padding, etc. */
+}
+.no-bullet {
+  list-style-type: none;
+  padding-left: 0; /* Removes default padding */
+  margin: 0; /* Removes default margin */
+}
+.user-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+}
+
+.user-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 600px; /* Adjust this value as needed */
+  margin-bottom: 10px;
+}
+
+.username {
+  flex-grow: 1;
+}
+.username {
+  flex-grow: 1;
+  text-align: left; /* This will align the text to the left */
+  margin-right: auto; /* This will push everything else to the right */
+}
+
+
+/* Responsive styling for smaller viewports */
+@media (max-width: 768px) {
+  .user-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .username {
+    margin-bottom: 5px;
+  }
+}

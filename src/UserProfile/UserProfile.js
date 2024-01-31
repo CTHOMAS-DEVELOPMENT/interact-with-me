@@ -16,16 +16,10 @@ const UserProfile = () => {
       state: { selectedUser: userId, userId: loggedInUserId }, // Passing loggedInUserId to NewSubmission
     });
   };
-  // const handleInteractClick = () => {
-  //   console.log("selectedUser", userId)
-  //   console.log("loggedInUserId", loggedInUserId)
-  //   console.log("selectedUsername", selectedUsername)
+  const handleBackToMessagesClick = () => {
+    navigate('/userlist', { state: { userId: loggedInUserId } }); // Update for v6
 
-  //   navigate("/feed", {
-  //     state: { selectedUser: userId, userId: loggedInUserId },
-  //   });
-  // };
-
+  };
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -41,6 +35,8 @@ const UserProfile = () => {
 
   return (
     <div>
+      <button onClick={handleBackToMessagesClick}>Back to messages</button>{" "}
+
       <h2>{user.username}'s Profile</h2>
       <p>Email: {user.email}</p>
       <button onClick={handleNewInteraction}>Create New Submission</button>

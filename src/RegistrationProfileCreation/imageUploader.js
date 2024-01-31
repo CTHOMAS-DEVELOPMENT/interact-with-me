@@ -4,7 +4,6 @@ const ImageUploader = ({ userId, onUpload }) => {
   const [file, setFile] = useState(null);
 
   const handleFileChange = (event) => {
-    console.log("event.target.files[0]",event.target.files[0])
     setFile(event.target.files[0]);
   };
 
@@ -31,9 +30,6 @@ const ImageUploader = ({ userId, onUpload }) => {
       }
   
       const data = await response.json();
-      
-      console.log("Profile Picture Updated:", data);
-      console.log("data.profile_picture:", data.profile_picture);
       if (onUpload) {
         onUpload(data.profile_picture);
       }

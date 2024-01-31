@@ -24,7 +24,6 @@ const PhotoUploadAndEdit = ({ userId, submissionId, onPhotoSubmit }) => {
       })
       .then(response => response.json())
       .then(data => {
-        console.log('Upload successful', data);
         if (onPhotoSubmit) {
           onPhotoSubmit(); // Trigger the callback to re-fetch posts
         }

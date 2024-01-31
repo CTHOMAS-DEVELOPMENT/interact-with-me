@@ -6,12 +6,14 @@ import FeedScreen from "./FeedScreen/FeedScreen";
 import UserList from "./UserList/UserList";
 import UserProfile from "./UserProfile/UserProfile";
 import PhotoUploadAndEdit from "./PhotoUploadAndEdit/PhotoUploadAndEdit";
-import NewSubmission from "./NewSubmission/NewSubmission"
+import NewSubmission from "./NewSubmission/NewSubmission";
+import EditInteraction from "./EditInteraction/EditInteraction"
 function App() {
   return (
     <Router>
       <div className="App">
         <Routes>
+        <Route path="/editInteraction" element={<EditInteraction />} />
           <Route path="/userprofile/:userId" element={<UserProfile />} />
           <Route path="/newsubmission" element={<NewSubmission />} />
           <Route path="/userlist" element={<UserList />} />

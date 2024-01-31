@@ -26,7 +26,6 @@ const RegistrationForm = () => {
   };
   const handleImageUpload = (url) => {
     //No url recieved
-    console.log("handleImageUpload", url);
     setUploadedImageUrl(url);
   };
   const validateForm = () => {

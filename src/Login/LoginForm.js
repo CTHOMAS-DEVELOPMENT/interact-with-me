@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { Link, useNavigate  } from "react-router-dom"; // Import Link from react-router-dom
+import { Link, useNavigate } from "react-router-dom"; // Import Link from react-router-dom
 import AlertMessage from "../system/AlertMessage";
 import unLoggedMan from "./unLoggedMan.png";
 import unLoggedWoman from "./unLoggedWoman.png";
+import {Button} from 'react-bootstrap';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const LoginForm = () => {
   const [formData, setFormData] = useState({
@@ -12,7 +14,7 @@ const LoginForm = () => {
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info"); // Default to 'info' or any type you prefer
   const [errors, setErrors] = useState({});
-  const navigate = useNavigate ();
+  const navigate = useNavigate();
   const handleInputChange = (event) => {
     const { name, value } = event.target;
     setFormData({
@@ -51,11 +53,10 @@ const LoginForm = () => {
       })
         .then((response) => response.json())
         .then((data) => {
-          console.log("data", data)
           if (data.success) {
             setMessage("Login successful");
             setType("success");
-            navigate('/userlist', { state: { userId: data.userId } }); // Update for v6
+            navigate("/userlist", { state: { userId: data.userId } }); // Update for v6
             //navigate('/feed', { state: { userId: data.userId } }); // Update for v6
           } else {
             setMessage(data.message || "Login failed");
@@ -77,36 +78,41 @@ const LoginForm = () => {
       </div>
       <div className="login-form">
         <div className="form-container">
-          <h2 className="fontHeader">User Login</h2>
           <form onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="username">Username</label>
               <input
                 type="text"
                 id="username"
                 name="username"
                 value={formData.username}
+                placeholder="Username"
                 onChange={handleInputChange}
                 required
               />
               {errors.username && <p className="error">{errors.username}</p>}
             </div>
             <div>
-              <label htmlFor="password">Password</label>
               <input
                 type="password"
                 id="password"
                 name="password"
                 value={formData.password}
+                placeholder="Password"
                 onChange={handleInputChange}
                 required
               />
               {errors.password && <p className="error">{errors.password}</p>}
             </div>
-
-            <button type="submit">Login</button>
+            <Button
+              variant="primary"
+              onClick={handleSubmit}
+            >
+              Login
+            </Button>{" "}
             <div className="register-link">
-              <p>Don't have an account? <Link to="/register">Register here</Link></p>
+              <p>
+                Don't have an account? <Link to="/register">Register here</Link>
+              </p>
             </div>
           </form>
           {message && <AlertMessage message={message} type={type} />}
