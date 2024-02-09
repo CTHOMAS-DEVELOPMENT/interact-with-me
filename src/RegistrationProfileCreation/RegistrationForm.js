@@ -16,7 +16,6 @@ const RegistrationForm = () => {
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
   const [errors, setErrors] = useState({});
   const [userId, setUserId] = useState(null); // State to store the user's ID
-  const DOMAIN_NAME = "localhost:3002";
   const handleInputChange = (event) => {
     const { name, value } = event.target;
     setFormData({

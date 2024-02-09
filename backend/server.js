@@ -255,6 +255,7 @@ app.get("/api/my_interaction_titles", async (req, res) => {
         us.id AS submission_id, 
         us.title, 
         TO_CHAR(us.created_at, 'Day, DD Month YYYY HH24:MI') AS formatted_created_at,
+        TO_CHAR(us.created_at, 'Mon DD HH24:MI') AS formatted_created_at_mobile,
         us.user_id, 
         u.username
       FROM 

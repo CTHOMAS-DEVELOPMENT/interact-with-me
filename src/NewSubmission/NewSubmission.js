@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
+import { Button } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 const NewSubmission = () => {
   const [title, setTitle] = useState("");
 
@@ -60,7 +61,13 @@ const NewSubmission = () => {
 
   return (
     <div>
-      <button onClick={handleBackToMessagesClick}>Back to messages</button>{" "}
+      <Button
+        variant="outline-info"
+        className="btn-sm"
+        onClick={handleBackToMessagesClick}
+      >
+        Back to messages
+      </Button>{" "}
       <h2>Create New Submission</h2>
       <input
         type="text"
@@ -68,9 +75,14 @@ const NewSubmission = () => {
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Title"
       />
-      <button onClick={handleSave} disabled={title.length < 3}>
+      <Button
+        variant="outline-info"
+        className="btn-sm"
+        onClick={handleSave}
+        disabled={title.length < 3}
+      >
         Save
-      </button>
+      </Button>{" "}
     </div>
   );
 };

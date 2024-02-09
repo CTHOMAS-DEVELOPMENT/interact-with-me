@@ -1,7 +1,7 @@
 /* General App Styles */
 .App {
   text-align: center;
-  font-family: 'Quicksand', sans-serif; /* Consistent with your header font */
+  font-family: "Quicksand", sans-serif; /* Consistent with your header font */
   background: #f0f0f0; /* A light grey background for contrast */
   color: #333; /* Dark grey color for text for better readability */
 }
@@ -104,7 +104,7 @@
   display: flex;
 }
 .image-uploader {
-  font-family: 'Quicksand', sans-serif;
+  font-family: "Quicksand", sans-serif;
   background-color: #f4f4f4;
   padding: 20px;
   border-radius: 10px;
@@ -179,14 +179,10 @@
 }
 input {
   font-family: "Quicksand", sans-serif;
-  font-weight: 400; 
+  font-weight: 400;
   /* Additional styling for the input fields like border, padding, etc. */
 }
-.no-bullet {
-  list-style-type: none;
-  padding-left: 0; /* Removes default padding */
-  margin: 0; /* Removes default margin */
-}
+
 .user-list {
   display: flex;
   flex-direction: column;
@@ -203,24 +199,243 @@ input {
   margin-bottom: 10px;
 }
 
-.username {
-  flex-grow: 1;
-}
-.username {
-  flex-grow: 1;
-  text-align: left; /* This will align the text to the left */
-  margin-right: auto; /* This will push everything else to the right */
-}
-
-
 /* Responsive styling for smaller viewports */
 @media (max-width: 768px) {
   .user-list-item {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+.file-upload-filename {
+  background-color: #f8f9fa; /* Bootstrap's default button color */
+  border: 1px solid #ced4da; /* Bootstrap's default border color */
+  border-radius: 0.25rem; /* Bootstrap's default border-radius */
+  padding: 0.375rem 0.75rem; /* Bootstrap's default padding for buttons */
+  font-size: 1rem; /* Bootstrap's default font size for buttons */
+  line-height: 1.5; /* Bootstrap's default line height for buttons */
+  color: #495057; /* Bootstrap's default text color */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Ensures the text doesn't overflow */
+  max-width: 200px; /* Adjust as needed */
+  display: inline-block; /* Makes the span behave like a block element */
+  margin-left: 10px; /* Space between the label and span */
+}
 
+/* Default style for larger screens */
+.date-display {
+  font-size: 1em; /* example size, adjust as needed */
+}
+
+.interaction-wrapper {
+  display: flex;
+}
+
+.interaction-title,
+.interaction-date,
+.interaction-username,
+.interaction-edit {
+  margin-right: 10px; /* Spacing between columns */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.interaction-title {
+  text-align: left;
+  flex-grow: 2; /* Allows the title to take up more space */
+}
+
+.interaction-date {
+  flex-basis: 20%; /* Adjust the percentage based on your needs */
+}
+
+.interaction-username,
+.interaction-edit {
+  flex-basis: 20%; /* Adjust the percentage based on your needs */
+}
+
+/* Style for mobile screens */
+@media (max-width: 768px) {
+  .date-display-mobile {
+    display: inline;
+    font-size: 0.8em;
+  }
+
+  .interaction-date,
+  .interaction-username,
+  .interaction-edit {
+    flex-basis: auto; /* Adjusts basis to content size on smaller screens */
+  }
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.8em;
+}
+
+.btn-sm:hover {
+  background-color: #0056b3;
+}
+
+/* Since the checkbox and button are not likely to grow, they don't need flex-grow */
+.checkbox-container {
+  /* Wraps the checkbox and ensures it doesn't grow with flexbox */
+  padding-right: 10px; /* Optional: if you want some space between the checkbox and the username */
+}
+
+/* Adjust your button styles if needed */
+.btn-sm {
+  /* Button styles */
+}
+
+/***************/
+.interaction-list-container {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin: 20px auto;
+  max-width: 600px;
+}
+
+.no-bullet {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+.interaction-item {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 10px 0;
+}
+
+.interaction-item:last-child {
+  border-bottom: none;
+}
+
+.interaction-title-container {
+  text-align: left;
+  padding: 5px 0; /* Add padding for spacing */
+}
+
+.interaction-details-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0; /* Add padding for spacing */
+}
+
+.interaction-title {
+  font-weight: 600;
+}
+
+.interaction-date {
+  flex-grow: 1;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/*************************************/
+.logout-button {
+  margin-bottom: 20px; /* Add some space below the logout button */
+}
+.users-list-container {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin: 20px auto;
+  max-width: 600px;
+}
+.user-item {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 10px 0;
+}
+
+.user-item:last-child {
+  border-bottom: none;
+}
+
+.user-info-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px; /* Space between username/checkbox and button */
+}
+
+.user-name {
+  flex-grow: 1;
+  text-align: left;
+}
+
+.user-checkbox {
+  margin-left: 10px; /* Space between username and checkbox */
+}
+
+.view-profile-btn {
+  width: 100%; /* Full width for the button to align with the wrapper */
+}
+
+/*User Profile*/
+.back-button {
+  margin-bottom: 10px; /* Adds space between the button and the profile container */
+}
+
+.profile-container {
+  background: #ffffff; /* White background */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); /* Optional: adds a subtle shadow */
+  padding: 20px; /* Padding inside the container */
+  margin: 20px auto; /* Margin for spacing around the container */
+  max-width: 600px; /* Maximum width of the container */
+  text-align: left; /* Align text to the left inside the container */
+}
+.centre-container {
+  display: flex;
+  justify-content: center; /* Centers horizontally */
+  /* Do not use align-items: center here since we're not centering vertically */
+}
+
+.edit-interaction-container {
+  background: #ffffff; /* White background */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  padding: 20px; /* Padding inside the container */
+  width: 100%; /* Full width */
+  max-width: 600px; /* Maximum width of the container */
+  margin: auto; /* This will ensure the container is centered horizontally */
+  /* Remove any specific margin-top if you want to let the container flow naturally within the document */
+}
+
+
+.user-edit-item {
+  display: flex;
+  justify-content: space-between; /* Distributes space between items */
+  align-items: center; /* Aligns items vertically */
+  padding: 10px 0; /* Padding for each user item */
+}
+
+.user-edit-item:last-child {
+  border-bottom: none;
+}
+
+.user-edit-info {
+  display: flex;
+  justify-content: space-between; /* Distributes space between username and checkbox */
+  align-items: center; /* Aligns items vertically */
+  width: 100%; /* Full width to utilize the space */
+}
+/*
+  .username {
+    flex-grow: 1;
+    text-align: left; 
+    margin-right: auto; 
+  }
   .username {
     margin-bottom: 5px;
   }
+  */
+.username {
+  flex-grow: 1; /* Allows the username to grow and fill available space */
+  text-align: left; /* Aligns the username text to the left */
 }

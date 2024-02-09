@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import AlertMessage from "../system/AlertMessage";
+import { Button } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 const EditInteraction = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { submissionId, loggedInUserId } = location.state;
-
+  const [message, setMessage] = useState("");
+  const [type, setType] = useState("info");
   const [title, setTitle] = useState("");
   const [users, setUsers] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
@@ -15,12 +19,9 @@ const EditInteraction = () => {
   const [isChanged, setIsChanged] = useState(false); // State to track changes
 
   useEffect(() => {
-    // Fetch the interaction details
-    // Fetch the interaction details
     fetch(`/api/interaction_user_list?submission_id=${submissionId}`)
       .then((response) => response.json())
       .then((data) => {
-        // Assuming data is an array; add checks for safety
         if (Array.isArray(data) && data.length > 0) {
           setTitle(data[0].title); // Assuming title is in each object; adjust as needed
           const userIds = data.map((user) => user.id);
@@ -29,7 +30,11 @@ const EditInteraction = () => {
         }
       })
       .catch((error) =>
-        console.error("Error fetching interaction details:", error)
+        {
+            console.error("Error fetching interaction details:", error)
+            setMessage("Error fetching interaction details");
+            setType("error");
+        }
       );
 
     // Fetch all users
@@ -38,7 +43,12 @@ const EditInteraction = () => {
       .then((data) =>
         setUsers(data.filter((user) => user.id !== loggedInUserId))
       )
-      .catch((error) => console.error("Error fetching users:", error));
+      .catch((error) => {
+        console.error("Error fetching users:", error)
+        setMessage("Error fetching users");
+        setType("error");
+    });
+      
   }, [submissionId, loggedInUserId]);
   const handleCheckboxChange = (userId) => {
     setSelectedUserIds((prevSelectedUserIds) => {
@@ -59,10 +69,11 @@ const EditInteraction = () => {
     });
   };
   const handleBackToMessagesClick = () => {
-    navigate('/userlist', { state: { userId: loggedInUserId } }); // Update for v6
-
+    navigate("/userlist", { state: { userId: loggedInUserId } }); // Update for v6
   };
   const handleUpdateGroupClick = () => {
+    setMessage("");
+    setType("info");
     const payload = {
       submissionId: submissionId,
       userIds: Array.from(selectedUserIds),
@@ -79,39 +90,60 @@ const EditInteraction = () => {
         if (response.ok) {
           return response.json();
         } else {
+          setMessage("Failed to update the group");
+          setType("error");
           throw new Error("Failed to update the group");
         }
       })
       .then((data) => {
-        console.log("Group updated successfully:", data);
+        setMessage("Group updated successfully");
         // Add any further processing or navigation here
       })
       .catch((error) => {
-        console.error("Error updating group:", error);
+        setMessage("Group updated successfully");
+        setType("error");
       });
   };
 
   // Render the component
   return (
     <div>
-      <button onClick={handleBackToMessagesClick}>Back to messages</button>{" "}
-      {/* Back to messages link */}
-      <h2>Edit Interaction: {title}</h2>
-      <ul>
-        {users.map((user) => (
-          <li key={user.id}>
-            {user.username}
-            <input
-              type="checkbox"
-              checked={selectedUserIds.has(user.id)}
-              onChange={() => handleCheckboxChange(user.id)} // Pass user.id to the handler
-            />
-          </li>
-        ))}
-      </ul>
-      {isChanged && (
-        <button onClick={handleUpdateGroupClick}>Update Group</button>
-      )}
+      <Button
+        variant="outline-info"
+        className="btn-sm"
+        onClick={handleBackToMessagesClick}
+      >
+        Back to messages
+      </Button>{" "}
+      <div className="centre-container">
+        <div className="edit-interaction-container">
+          <h2>{title}</h2>
+          <ul className="no-bullet">
+            {users.map((user) => (
+              <li key={user.id} className="user-edit-item">
+                <div className="user-edit-info">
+                  <span className="username">{user.username}</span>
+                  <input
+                    type="checkbox"
+                    checked={selectedUserIds.has(user.id)}
+                    onChange={() => handleCheckboxChange(user.id)} // Pass user.id to the handler
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+          {message && <AlertMessage message={message} type={type} />}
+          {isChanged && (
+            <Button
+              variant="outline-info"
+              className="btn-sm"
+              onClick={handleUpdateGroupClick}
+            >
+              Update Group
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

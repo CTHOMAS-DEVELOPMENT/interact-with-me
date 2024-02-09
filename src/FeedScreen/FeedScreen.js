@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import PhotoUploadAndEdit from "../PhotoUploadAndEdit/PhotoUploadAndEdit";
 import TextEntry from "../TextEntry/TextEntry";
+import { Button } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
+/*New*/
 const FeedScreen = () => {
   const [posts, setPosts] = useState([]);
   const location = useLocation();
@@ -31,7 +34,13 @@ const FeedScreen = () => {
   }, [submissionId]);
   return (
     <div className="feed-screen">
-      <button onClick={handleBackToMessagesClick}>Back to messages</button>{" "}
+      <Button
+        variant="outline-info"
+        className="btn-sm"
+        onClick={handleBackToMessagesClick}
+      >
+        Back to messages
+      </Button>{" "}
       <h2>{title}</h2>
       {submissionId && (
         <>

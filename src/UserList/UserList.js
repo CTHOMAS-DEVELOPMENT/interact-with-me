@@ -4,6 +4,7 @@ import InteractionTitles from "../InteractionTitles/InteractionTitles";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 const UsersList = () => {
+  /*New*/
   const [users, setUsers] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
   const navigate = useNavigate();
@@ -55,38 +56,45 @@ const UsersList = () => {
 
   return (
     <div>
-      <Button variant="danger" onClick={handleLogoutClick}>
+      <Button variant="danger" onClick={handleLogoutClick} className="logout-button">
         Logout
-      </Button>{" "}
+      </Button>
       <h2>All Users</h2>
-      <ul className="no-bullet">
-        {users.map((user) => (
-          <li key={user.id}>
-            {user.username}
-            <input
-              type="checkbox"
-              onChange={() => handleCheckboxChange(user.id)}
-            />
-            <Button
-              variant="outline-info"
-              className="btn-sm"
-              onClick={() => handleProfileClick(user.id, user.username)}
-            >
-              View Profile
-            </Button>{" "}
-          </li>
-        ))}
-      </ul>
+      <div className="users-list-container">
+        <ul className="no-bullet">
+          {users.map((user) => (
+            <li key={user.id} className="user-item">
+              <div className="user-info-container">
+                <span className="user-name">{user.username}</span>
+                <input
+                  type="checkbox"
+                  onChange={() => handleCheckboxChange(user.id)}
+                  checked={selectedUserIds.has(user.id)}
+                  className="user-checkbox"
+                />
+              </div>
+              <Button
+                variant="outline-info"
+                className="btn-sm view-profile-btn"
+                onClick={() => handleProfileClick(user.id, user.username)}
+              >
+                View Profile
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </div>
       {selectedUserIds.size > 0 && (
-        <button onClick={handleNewInteraction}>
+        <Button
+          variant="outline-info"
+          className="btn-sm new-interaction-btn"
+          onClick={handleNewInteraction}
+        >
           {selectedUserIds.size === 1
-            ? `Create new Submission with ${
-                users.find((user) => selectedUserIds.has(user.id)).username
-              }`
+            ? `Create new Submission with ${users.find((user) => selectedUserIds.has(user.id)).username}`
             : "Create new Submission with group members"}
-        </button>
+        </Button>
       )}
-      {/* Include the InteractionTitles component */}
       <h2>My Interactions</h2>
       <InteractionTitles loggedInUserId={loggedInUserId} />
     </div>
