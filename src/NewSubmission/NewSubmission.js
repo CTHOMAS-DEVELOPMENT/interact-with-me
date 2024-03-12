@@ -9,7 +9,6 @@ const NewSubmission = () => {
   const loggedInUserId = location.state?.userId;
   const selectedUser = location.state?.selectedUser;
   const selectedUserIds = location.state?.selectedUserIds;
-  //console.log("selectedUserIds", selectedUserIds);
   const navigate = useNavigate();
   const handleBackToMessagesClick = () => {
     navigate("/userlist", { state: { userId: loggedInUserId } }); // Update for v6

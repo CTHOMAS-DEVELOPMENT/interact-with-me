@@ -1,44 +1,70 @@
 import React, { useState } from "react";
+import Resizer from "react-image-file-resizer";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 
-const PhotoUploadAndEdit = ({ userId, submissionId, onPhotoSubmit }) => {
+const PhotoUploadAndEdit = ({
+  userId,
+  submissionId,
+  onPhotoSubmit,
+  onSaveSuccess,
+  dialogId,
+}) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-
+  const [fileName, setFileName] = useState(""); // State to hold the file name
+  const resizeFile = (file) =>
+    new Promise((resolve) => {
+      Resizer.imageFileResizer(
+        file,
+        400, // maxWidth
+        400, // Adjust maxHeight as needed to maintain aspect ratio
+        "JPEG", // compressFormat
+        100, // quality
+        0, // rotation
+        (uri) => {
+          resolve(uri);
+        },
+        "file" // Output as file blob
+      );
+    });
   const handleFileChange = (event) => {
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      resizeFile(file).then((resizedImage) => {
+        setSelectedFile(resizedImage);
+        setPreviewUrl(URL.createObjectURL(resizedImage));
+      });
       setIsEditing(true);
-      // Update the label with the file name
-      document.getElementById("file-upload-filename").textContent = file.name;
+      setFileName(file.name);
     }
   };
 
   const handleSave = () => {
     const formData = new FormData();
     formData.append("file", selectedFile);
-    formData.append("userId", userId);
-    fetch(`/api/users/${submissionId}/uploaded-item`, {
+    if (userId) formData.append("userId", userId);
+
+    let apiEndpoint = "/api/users/uploaded-item";
+    if (submissionId) apiEndpoint = `/api/users/${submissionId}/uploaded-item`;
+    if (dialogId)
+      apiEndpoint = `/api/submission-dialog/${dialogId}/update-item`;
+
+      console.log("apiEndpoint",apiEndpoint)
+    fetch(apiEndpoint, {
       method: "POST",
       body: formData,
     })
       .then((response) => response.json())
       .then((data) => {
-        if (onPhotoSubmit) {
-          onPhotoSubmit(); // Trigger the callback to re-fetch posts
-        }
-        // Clear the image preview and reset editing state
+        if (onPhotoSubmit) onPhotoSubmit();
+        if (onSaveSuccess) onSaveSuccess();
         setSelectedFile(null);
         setPreviewUrl(null);
         setIsEditing(false);
       })
-      .catch((error) => {
-        console.error("Upload error:", error);
-      });
+      .catch((error) => console.error("Upload error:", error));
   };
 
   return (
@@ -55,9 +81,7 @@ const PhotoUploadAndEdit = ({ userId, submissionId, onPhotoSubmit }) => {
           <label htmlFor="fileUpload" className="btn btn-outline-info btn-sm">
             Choose File
           </label>
-          <span id="file-upload-filename" className="file-upload-filename">
-            No file chosen
-          </span>
+          {fileName && <div className="file-upload-filename">{fileName}</div>}
         </>
       )}
 

@@ -20,7 +20,7 @@
 }
 
 /* Registration Form Styles */
-.registration-form {
+.system-form {
   max-width: 500px; /* Set a max width for the form */
   margin: 30px auto; /* Center the form with margin */
   padding: 40px; /* Padding inside the form */
@@ -29,13 +29,13 @@
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
 }
 
-.registration-form h2 {
+.system-form h2 {
   margin-bottom: 20px; /* Space below the header */
   color: #333; /* Dark text for the header */
 }
 
 /* Style for form inputs */
-.registration-form input {
+.system-form input {
   width: calc(100% - 20px); /* Full width inputs */
   padding: 10px; /* Padding inside inputs */
   margin-bottom: 15px; /* Space between inputs */
@@ -43,33 +43,44 @@
   border-radius: 4px; /* Slightly rounded corners for inputs */
 }
 
-/* Style for the submit button */
-.registration-form button {
-  width: 100%;
-  padding: 10px;
-  background-color: #61dafb; /* Use the same color as your link for consistency */
-  border: none;
-  border-radius: 4px;
-  color: white;
-  font-size: 16px; /* Larger font size for better readability */
-  cursor: pointer; /* Cursor indicates the button is clickable */
-  transition: background-color 0.3s; /* Smooth transition for hover effect */
+/* Style for form selects (dropdowns) */
+.system-form select {
+  width: calc(100% - 20px); /* Full width of the select */
+  padding: 10px; /* Padding inside the select */
+  margin-bottom: 15px; /* Space between form elements */
+  border: 1px solid #ddd; /* Subtle border for the select */
+  border-radius: 4px; /* Slightly rounded corners for the select */
+  background-color: white; /* White background for the select */
+  color: #333; /* Dark text color for the select options */
+  cursor: pointer; /* Cursor indicates the select is clickable */
 }
 
-.registration-form button:hover {
-  background-color: #4095c6; /* Darker shade on hover for the button */
+.system-form select:focus {
+  outline: none; /* Removes the default focus outline */
+  border-color: #61dafb; /* Highlight color when select is focused */
 }
 
 /* Responsive Design */
 @media (max-width: 600px) {
-  .registration-form {
+  .system-form {
     width: 90%; /* Make the form wider on smaller screens */
     margin: 20px auto; /* Adjust margin on smaller screens */
   }
 }
-
+.button-container {
+  display: flex;
+  flex-direction: column; /* Stack buttons vertically */
+  gap: 10px; /* Space between buttons */
+  align-items: center; /* Center-align the buttons */
+  margin-bottom: 20px; /* Space below the button container */
+}
+.button-stack {
+  display: flex;
+  flex-direction: column; /* Stack buttons vertically */
+  align-items: center; /* Center-align the buttons */
+}
 /* Container for the form and the image panel */
-.registration-container {
+.system-container {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -78,7 +89,7 @@
 }
 
 /* Registration form panel */
-.registration-panel {
+.system-panel {
   flex: 1;
   max-width: 400px; /* Limit the width of the form */
   margin: 0 20px;
@@ -158,18 +169,18 @@
   /* Style for image containers */
   flex: 1;
 }
-.register-link {
+.login-page-link {
   margin-top: 20px;
   text-align: center;
 }
 
-.register-link a {
+.login-page-link a {
   color: #007bff; /* Or any color that matches your design */
   text-decoration: none;
   font-weight: bold;
 }
 
-.register-link a:hover {
+.login-page-link a:hover {
   text-decoration: underline;
 }
 
@@ -232,7 +243,6 @@ input {
 }
 
 .interaction-title,
-.interaction-date,
 .interaction-username,
 .interaction-edit {
   margin-right: 10px; /* Spacing between columns */
@@ -246,9 +256,6 @@ input {
   flex-grow: 2; /* Allows the title to take up more space */
 }
 
-.interaction-date {
-  flex-basis: 20%; /* Adjust the percentage based on your needs */
-}
 
 .interaction-username,
 .interaction-edit {
@@ -262,7 +269,6 @@ input {
     font-size: 0.8em;
   }
 
-  .interaction-date,
   .interaction-username,
   .interaction-edit {
     flex-basis: auto; /* Adjusts basis to content size on smaller screens */
@@ -284,13 +290,7 @@ input {
   padding-right: 10px; /* Optional: if you want some space between the checkbox and the username */
 }
 
-/* Adjust your button styles if needed */
-.btn-sm {
-  /* Button styles */
-}
-
-/***************/
-.interaction-list-container {
+.wrapper-container {
   background: #ffffff;
   border-radius: 10px;
   box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
@@ -304,38 +304,11 @@ input {
   padding: 0;
   margin: 0;
 }
-.interaction-item {
-  border-bottom: 1px solid #f0f0f0;
-  padding: 10px 0;
-}
-
-.interaction-item:last-child {
-  border-bottom: none;
-}
-
-.interaction-title-container {
-  text-align: left;
-  padding: 5px 0; /* Add padding for spacing */
-}
-
-.interaction-details-container {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 0; /* Add padding for spacing */
-}
 
 .interaction-title {
   font-weight: 600;
 }
 
-.interaction-date {
-  flex-grow: 1;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-/*************************************/
 .logout-button {
   margin-bottom: 20px; /* Add some space below the logout button */
 }
@@ -425,17 +398,126 @@ input {
   align-items: center; /* Aligns items vertically */
   width: 100%; /* Full width to utilize the space */
 }
-/*
-  .username {
-    flex-grow: 1;
-    text-align: left; 
-    margin-right: auto; 
-  }
-  .username {
-    margin-bottom: 5px;
-  }
-  */
 .username {
   flex-grow: 1; /* Allows the username to grow and fill available space */
   text-align: left; /* Aligns the username text to the left */
 }
+
+.btn-sm.interaction-edit {
+  margin-top: 5px; /* Space above the edit button */
+}
+
+.interaction-item {
+  background: #ffffff; /* White background */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  padding: 20px; /* Padding inside the container */
+  margin-bottom: 15px; /* Space between items */
+}
+
+.interaction-title-container {
+  text-align: left;
+}
+
+.interaction-details-container {
+  display: flex;
+  flex-direction: column; /* Stack date and edit button vertically */
+  align-items: flex-start; /* Align to the left */
+  font-size: 0.8em; /* Smaller font size for details */
+}
+
+.interaction-edit-container {
+  display: flex;
+  justify-content: flex-end; /* Right align the edit button */
+  margin-top: 10px; /* Space from the date */
+}
+.interaction-date, .interaction-expected-end {
+  color: #000; /* Default text color for creation date */
+  margin-bottom: 5px; /* Space between dates and edit button */
+}
+.interaction-expected-end {
+  color: red; /* Red text color for expected end */
+}
+.summary-container {
+  background: #f3f3f3; /* Light grey background */
+  border-radius: 15px; /* Rounded corners */
+  padding: 20px; /* Some padding */
+  margin-bottom: 20px; /* Space below the container */
+  border: 1px solid #ccc; /* Light grey border */
+  box-shadow: 0px 0px 10px rgba(0,0,0,0.1); /* Subtle shadow */
+}
+
+.element-group-box {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-opaque mask */
+  z-index: 1040; /* Ensure it's above most content */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 5px;
+  z-index: 1050; /* Above the backdrop */
+}
+
+.photo-upload-edit {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  display: inline-block;
+}
+
+.file-upload-filename {
+  display: inline-block; /* Inline-block will place it on the same line as preceding content */
+  margin-left: 8px; /* Ensure it doesn’t stick to the button */
+  line-height: 38px; /* Aligns text vertically; adjust as needed based on button size */
+}
+
+/* Hide the file input using opacity instead of display to maintain its functionality */
+#fileUpload {
+  opacity: 0;
+  width: 0.1px;
+  height: 0.1px;
+  position: absolute;
+  z-index: -1;
+}
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+}
+
+.text-update-modal {
+  width: 80%;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  z-index: 1055;
+}
+
+

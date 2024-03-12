@@ -12,7 +12,6 @@ const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
     }
 
     try {
-      console.log("text-entry userId passed", userId);
       const response = await fetch(`/api/users/${submissionId}/text-entry`, {
         method: "POST",
         headers: {
@@ -38,14 +37,16 @@ const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
   return (
     <div className="text-entry">
       <form onSubmit={handleSubmit}>
-        <textarea
-          value={textContent}
-          onChange={(e) => setTextContent(e.target.value)}
-          placeholder="What's on your mind?"
-        />
-        <Button type="submit" variant="outline-info" className="btn-sm">
-          Post
-        </Button>{" "}
+        <div className="button-stack">
+          <textarea
+            value={textContent}
+            onChange={(e) => setTextContent(e.target.value)}
+            placeholder="What's on your mind?"
+          />
+          <Button type="submit" variant="outline-info" className="btn-sm">
+            Post
+          </Button>
+        </div>
       </form>
     </div>
   );

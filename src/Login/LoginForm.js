@@ -1,20 +1,23 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom"; // Import Link from react-router-dom
+import { useLocation, Link, useNavigate } from "react-router-dom"; // Import Link from react-router-dom
 import AlertMessage from "../system/AlertMessage";
 import unLoggedMan from "./unLoggedMan.png";
 import unLoggedWoman from "./unLoggedWoman.png";
-import {Button} from 'react-bootstrap';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import { Button } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 const LoginForm = () => {
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-  });
+
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info"); // Default to 'info' or any type you prefer
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const location = useLocation(); // To access the passed state
+    // Initialize formData state with username from the navigation state if available
+    const [formData, setFormData] = useState({
+      username: location.state?.username || "", // Pre-populate username if it's passed in state
+      password: "",
+    });
   const handleInputChange = (event) => {
     const { name, value } = event.target;
     setFormData({
@@ -103,15 +106,17 @@ const LoginForm = () => {
               />
               {errors.password && <p className="error">{errors.password}</p>}
             </div>
-            <Button
-              variant="primary"
-              onClick={handleSubmit}
-            >
+            <Button variant="primary" onClick={handleSubmit}>
               Login
             </Button>{" "}
-            <div className="register-link">
+            <div className="login-page-link">
               <p>
                 Don't have an account? <Link to="/register">Register here</Link>
+              </p>
+            </div>
+            <div className="login-page-link">
+            <p>
+              <Link to="/password-reset-request">Forgotten password?</Link>
               </p>
             </div>
           </form>

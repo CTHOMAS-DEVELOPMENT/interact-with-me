@@ -4,8 +4,8 @@ import InteractionTitles from "../InteractionTitles/InteractionTitles";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 const UsersList = () => {
-  /*New*/
   const [users, setUsers] = useState([]);
+  const [user, setUser] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
   const navigate = useNavigate();
   const location = useLocation();
@@ -14,13 +14,16 @@ const UsersList = () => {
   useEffect(() => {
     fetch("/api/users")
       .then((response) => response.json())
-      .then((data) =>
-        setUsers(data.filter((user) => user.id !== loggedInUserId))
-      )
+      .then((data) => {
+        // Assuming 'data' is an array of user objects which includes the logged-in user
+        const loggedInUser = data.find((user) => user.id === loggedInUserId);
+        setUser(loggedInUser);
+
+        setUsers(data.filter((user) => user.id !== loggedInUserId));
+      })
       .catch((error) => console.error("Error fetching users:", error));
   }, [loggedInUserId]);
   const handleLogoutClick = () => {
-    console.log("handleLogoutClick");
     navigate("/"); // Update for v6
   };
   const handleCheckboxChange = (userId) => {
@@ -45,6 +48,10 @@ const UsersList = () => {
     });
   };
 
+  const handleUpdateProfileClick = (loggedInUserId) => {
+    navigate("/profile", { state: { userId: loggedInUserId } });
+  };
+
   const handleNewInteraction = () => {
     navigate("/newsubmission", {
       state: {
@@ -56,9 +63,21 @@ const UsersList = () => {
 
   return (
     <div>
-      <Button variant="danger" onClick={handleLogoutClick} className="logout-button">
-        Logout
-      </Button>
+      <div className="button-container">
+        <Button
+          variant="danger"
+          onClick={handleLogoutClick}
+          className="logout-button"
+        >
+          Logout {user ? user.username : ""}?
+        </Button>
+        <Button
+          variant="outline-info"
+          onClick={() => handleUpdateProfileClick(user.id)}
+        >
+          Profile
+        </Button>
+      </div>
       <h2>All Users</h2>
       <div className="users-list-container">
         <ul className="no-bullet">
@@ -91,7 +110,9 @@ const UsersList = () => {
           onClick={handleNewInteraction}
         >
           {selectedUserIds.size === 1
-            ? `Create new Submission with ${users.find((user) => selectedUserIds.has(user.id)).username}`
+            ? `Create new Submission with ${
+                users.find((user) => selectedUserIds.has(user.id)).username
+              }`
             : "Create new Submission with group members"}
         </Button>
       )}

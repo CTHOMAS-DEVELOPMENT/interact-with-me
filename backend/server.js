@@ -1,14 +1,79 @@
-require("dotenv").config();
 const express = require("express");
 const { Pool } = require("pg");
 const multer = require("multer");
+const fs = require('fs');
+const path = require('path');
 const HOST = "localhost";
+const PORTFOREMAIL= '3000'
 const PORTNO = 5432;
 // Create a new express application
 const app = express();
-const path = require("path");
 const bcrypt = require("bcrypt");
+const nodemailer = require('nodemailer');
+//const { OpenAI } = require('openai');
+const { HfInference } = require("@huggingface/inference");
+function loadEnvVariables() {
+  // Adjust if your .env file is located elsewhere. Using __dirname ensures it looks in the same directory as your server.js file.
+  const envPath = path.join(__dirname, '.env');
+  console.log(`Loading .env from: ${envPath}`); // Log the path to verify it's correct
 
+  try {
+      const data = fs.readFileSync(envPath, 'utf-8');
+      console.log(`Raw .env data: ${data}`); // Log raw .env data for verification
+
+      // Split the data on new line, compatible with both UNIX and Windows environments
+      const envVariables = data.split(/\r?\n/);
+
+      envVariables.forEach(variable => {
+          if (!variable.trim() || variable.startsWith('#')) return; // Skip empty lines and comments
+
+          const [key, value] = variable.split('=');
+          if (key && value) {
+              process.env[key.trim()] = value.trim();
+          }
+      });
+  } catch (error) {
+      console.error("Error loading .env variables:", error);
+  }
+}
+
+// Call the function at the start of your application
+loadEnvVariables();
+
+const RESET_EMAIL = process.env.RESET_EMAIL;
+const HF_TOKEN = process.env.HF_TOKEN;
+// Initialize the HfInference object with your API token
+const inference = new HfInference(HF_TOKEN);
+
+(async () => {
+  try {
+    // Perform a translation task
+    const response = await inference.translation({
+      model: 't5-base',
+      inputs: 'My name is Wolfgang and I live in Amsterdam'
+    });
+
+    // Log the response to the console
+    console.log(response);
+  } catch (error) {
+    console.error("Error during model inference:", error);
+  }
+})();
+// const openai = new OpenAI({
+//   apiKey: process.env.OPENAI_API_KEY,
+// });
+
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Example using Gmail
+  auth: {
+    user: RESET_EMAIL,
+    pass: 'oevo zajd vezi qjka',
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
 app.use(express.json());
 // Serve static files from the 'backend/imageUploaded' directory
 app.use(
@@ -55,6 +120,75 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage: storage });
+
+app.post('/api/generate-text', async (req, res) => {
+  const { prompt } = req.body; // Extract the prompt from the request body
+
+  // Function to remove the prompt from the generated text
+  function removePromptFromGeneratedText(prompt, generatedText) {
+    prompt = prompt.trim();
+    generatedText = generatedText.trim();
+
+    if (generatedText.startsWith(prompt)) {
+      // Remove the prompt and any leading/trailing whitespace or new lines
+      return generatedText.slice(prompt.length).trim();
+    }
+
+    // If the prompt is not at the start, return the generated text as is
+    return generatedText;
+  }
+
+  try {
+    const response = await inference.textGeneration({
+      model: 'EleutherAI/gpt-neox-20b', // Adjust model as needed
+      inputs: prompt,
+      parameters: { max_length: 500 }, // Customize parameters as needed
+      options: { use_cache: false },
+    });
+
+    // Access the generated text directly
+    const generatedText = response.generated_text; // Adjust based on actual output
+    
+    // Use the function to clean the generated text by removing the prompt
+    const cleanedText = removePromptFromGeneratedText(prompt, generatedText);
+
+    // Log for debugging
+    // console.log("prompt", prompt);
+    // console.log("cleanedGeneratedText", cleanedText);
+
+    // Send the cleaned text back to the frontend
+    res.json({ generatedText: cleanedText });
+  } catch (error) {
+    console.error("Hugging Face API request failed:", error);
+    res.status(500).send("Failed to fetch response from Hugging Face");
+  }
+});
+app.post('/api/summarize-text', async (req, res) => {
+  const { text } = req.body;
+
+  try {
+    const response = await inference.summarization({
+      model: 'facebook/bart-large-cnn',
+      inputs: text,
+      parameters: { max_length: 200, min_length: 50, do_sample: false },
+    });
+
+    let summaryText = response.summary_text.trim();
+
+    // Custom logic to ensure the summary isn't longer than the input
+    if (summaryText.length > text.length) {
+      summaryText = text; // Optionally, could also apply further trimming here
+    }
+
+    res.json({ summary: summaryText });
+  } catch (error) {
+    console.error("Failed to summarize text:", error);
+    res.status(500).send("Failed to fetch summary");
+  }
+});
+
+
+
 // Define a test route
 app.get("/test-db", async (req, res) => {
   try {
@@ -100,15 +234,14 @@ app.post("/api/login", async (req, res) => {
 
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, hobby, sexualOrientation, floatsMyBoat } = req.body;
 
-    // Hash the password before storing it
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     const result = await pool.query(
-      "INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING *",
-      [username, email, hashedPassword]
+      "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [username, email, hashedPassword, hobby, sexualOrientation, floatsMyBoat]
     );
 
     res.json(result.rows[0]);
@@ -117,37 +250,185 @@ app.post("/api/register", async (req, res) => {
     handleDatabaseError(error, res);
   }
 });
+
+app.put("/api/update_profile/:id", async (req, res) => {
+  const { id } = req.params;
+  let { username, email, password, hobby, sexualOrientation, floatsMyBoat } = req.body;
+
+  // Validation for password length if it's not empty
+  if (password && password.trim().length < 8) {
+    return res.status(400).send("Password must be at least 8 characters long");
+  }
+
+  // Optionally, hash the new password before storing it
+  const saltRounds = 10;
+  const hashedPassword = password ? await bcrypt.hash(password, saltRounds) : undefined;
+
+  // Substitute empty strings with specified default values for enum fields
+  sexualOrientation = sexualOrientation === "" ? 'Undisclosed' : sexualOrientation;
+  hobby = hobby === "" ? 'Other' : hobby;
+  floatsMyBoat = floatsMyBoat === "" ? 'Other (Not Listed)' : floatsMyBoat;
+
+  const updateQuery = `
+    UPDATE users SET
+    username = COALESCE($1, username),
+    email = COALESCE($2, email),
+    password = COALESCE($3, password),
+    hobbies = COALESCE($4, hobbies),
+    sexual_orientation = COALESCE($5, sexual_orientation),
+    floats_my_boat = COALESCE($6, floats_my_boat)
+    WHERE id = $7
+    RETURNING *;
+  `;
+
+  const values = [username, email, hashedPassword, hobby, sexualOrientation, floatsMyBoat, id];
+
+  try {
+    const result = await pool.query(updateQuery, values);
+    if (result.rows.length > 0) {
+      res.json(result.rows[0]);
+    } else {
+      res.status(404).send("User not found");
+    }
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    res.status(500).send("Failed to update profile");
+  }
+});
+
+
+
+
 app.get("/api/users", async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, username, email FROM users");
+    const result = await pool.query("SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat FROM users");
     res.json(result.rows);
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: "An error occurred." });
   }
 });
+async function findUserById(userId) {
+  try {
+    const query = `SELECT profile_picture FROM users WHERE id = $1`;
+    const values = [userId];
+    const result = await pool.query(query, values);
 
-app.post(
-  "/api/users/:userId/profile-picture",
-  upload.single("file"),
-  async (req, res) => {
-    try {
-      const userId = req.params.userId;
-      // Get the file path from multer's req.file
-      const profilePicturePath = req.file.path;
-
-      const result = await pool.query(
-        "UPDATE users SET profile_picture = $1 WHERE id = $2 RETURNING *",
-        [profilePicturePath, userId]
-      );
-
-      res.json(result.rows[0]);
-    } catch (error) {
-      console.error(error);
-      handleDatabaseError(error, res);
+    if (result.rows.length === 0) {
+      return null; // User not found
     }
+
+    // Assuming profile_picture stores either a path or a URL
+    const userProfilePicture = result.rows[0].profile_picture;
+    return userProfilePicture;
+  } catch (error) {
+    console.error("Error finding user by ID:", error);
+    throw error; // Rethrow the error for calling function to handle
   }
-);
+}
+
+app.get("/api/users/:userId/profile-picture", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const profilePicturePath = await findUserById(userId);
+    if (!profilePicturePath) {
+      return res.status(404).json({ message: "User not found or no profile picture set" });
+    }
+
+    // Adjust the path to be relative to the static directory you've set up in Express
+    // Assuming profilePicturePath format is "backend/imageUploaded/file-name.jpg"
+    const urlPath = profilePicturePath.replace(/^backend\\imageUploaded\\/, '/uploaded-images/');
+    res.json({ profilePicture: urlPath });
+  } catch (error) {
+    console.error("Error fetching profile picture:", error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.post("/api/users/:userId/profile-picture", upload.single("file"), async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    // Start a transaction
+    await pool.query("BEGIN");
+
+    // First, retrieve the current profile picture path for the user, if it exists
+    const { rows: existingUser } = await pool.query(
+      "SELECT profile_picture FROM users WHERE id = $1",
+      [userId]
+    );
+
+    // If there's an existing profile picture, delete the file
+    if (existingUser.length > 0 && existingUser[0].profile_picture) {
+      const existingFilePath = existingUser[0].profile_picture;
+      // Assuming your file paths are stored relative to a base directory you define (for safety)
+      //const baseDir = path.resolve(__dirname, 'pathToYourImagesDirectory'); // Adjust to your images directory
+      const sanitizedPath = existingFilePath.replace(/backend\\imageUploaded\\/g, '');
+      const baseDir = path.resolve(__dirname, 'imageUploaded');
+      const fullPath = path.join(baseDir, sanitizedPath);
+
+      if (fs.existsSync(fullPath)) {
+        await fs.promises.unlink(fullPath);
+        console.log(`Deleted existing profile picture: ${fullPath}`);
+      }
+    }
+
+    // Update the user's profile picture path in the database
+    const profilePicturePath = req.file.path;
+    const result = await pool.query(
+      "UPDATE users SET profile_picture = $1 WHERE id = $2 RETURNING *",
+      [profilePicturePath, userId]
+    );
+
+    // Commit the transaction
+    await pool.query("COMMIT");
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    // Rollback in case of error
+    await pool.query("ROLLBACK");
+    console.error(error);
+    handleDatabaseError(error, res);
+  }
+});
+app.delete("/api/submission-dialog/:dialogId", async (req, res) => {
+  const { dialogId } = req.params;
+
+  try {
+    const selectQuery = "SELECT uploaded_path FROM submission_dialog WHERE id = $1";
+    const selectResult = await pool.query(selectQuery, [dialogId]);
+
+    if (selectResult.rows.length > 0) {
+      const { uploaded_path } = selectResult.rows[0];
+
+      if (uploaded_path) {
+        const filePath = path.join(__dirname, 'imageUploaded', path.basename(uploaded_path));
+        try {
+          if (fs.existsSync(filePath)) {
+            await fs.promises.unlink(filePath); // Asynchronously delete the file
+          }
+        } catch (err) {
+          return res.status(500).send("Error deleting the file.");
+        }
+      }
+
+      // Proceed to delete the database record whether or not a file was present/deleted
+      const deleteQuery = "DELETE FROM submission_dialog WHERE id = $1";
+      await pool.query(deleteQuery, [dialogId]);
+
+      res.json({ message: "Dialog record deleted successfully." });
+    } else {
+      res.status(404).send("Dialog record not found.");
+    }
+  } catch (error) {
+    console.error("Error in deletion process:", error);
+    res.status(500).send("Error during the deletion process.");
+  }
+});
+
+
+
+
 /** */
 app.post(
   "/api/users/:submissionId/uploaded-item",
@@ -174,6 +455,80 @@ app.post(
     }
   }
 );
+
+
+app.post("/api/submission-dialog/:dialogId/update-item", upload.single("file"), async (req, res) => {
+  const dialogId = req.params.dialogId; // Get the dialog ID from the URL parameter
+  try {
+    // Start a transaction
+    await pool.query("BEGIN");
+    
+    // Retrieve the current uploaded_path
+    const selectQuery = "SELECT uploaded_path FROM submission_dialog WHERE id = $1";
+    const selectResult = await pool.query(selectQuery, [dialogId]);
+    if (selectResult.rows.length > 0 && selectResult.rows[0].uploaded_path) {
+      // Delete the old file
+      const oldFilePath = selectResult.rows[0].uploaded_path;
+      const fullOldFilePath = path.join(__dirname, 'imageUploaded', path.basename(oldFilePath));
+      if (fs.existsSync(fullOldFilePath)) {
+        await fs.promises.unlink(fullOldFilePath);
+        console.log(`Deleted old file: ${fullOldFilePath}`);
+      }
+    } else {
+      throw new Error('No existing file path found.');
+    }
+    
+    // Construct the new file path
+    const uploadedFilePath = path.join("/uploaded-images", path.basename(req.file.path));
+
+    // Update the uploaded_path in the submission_dialog table
+    const updateQuery = "UPDATE submission_dialog SET uploaded_path = $1 WHERE id = $2 RETURNING *";
+    const updateResult = await pool.query(updateQuery, [uploadedFilePath, dialogId]);
+    if (updateResult.rows.length) {
+      // Commit the transaction
+      await pool.query("COMMIT");
+      res.json(updateResult.rows[0]); // Send back the updated record
+    } else {
+      throw new Error('No dialog found to update.');
+    }
+  } catch (error) {
+    // Rollback in case of error
+    await pool.query("ROLLBACK");
+    console.error(error);
+    res.status(500).send("Server error occurred while updating the item.");
+  }
+});
+app.patch("/api/submission-dialog/:dialogId", async (req, res) => {
+  const dialogId = req.params.dialogId;
+  const newTextContent = req.body.text_content;
+
+  if (!newTextContent.trim()) {
+    return res.status(400).send("Text content is required.");
+  }
+
+  try {
+    // Start a transaction
+    await pool.query("BEGIN");
+
+    // Update text_content in the submission_dialog table
+    const updateQuery = "UPDATE submission_dialog SET text_content = $1 WHERE id = $2 RETURNING *";
+    const result = await pool.query(updateQuery, [newTextContent, dialogId]);
+
+    if (result.rows.length) {
+      // Commit the transaction
+      await pool.query("COMMIT");
+      res.json(result.rows[0]); // Send back the updated record
+    } else {
+      res.status(404).send("Submission dialog not found.");
+    }
+  } catch (error) {
+    // Rollback in case of error
+    await pool.query("ROLLBACK");
+    console.error(error);
+    res.status(500).send("Server error occurred while updating the text content.");
+  }
+});
+
 
 app.get("/api/users/:submissionId/posts", async (req, res) => {
   try {
@@ -215,7 +570,7 @@ app.post("/api/update-the-group", async (req, res) => {
     const { submissionId, userIds } = req.body; // Get submissionId and userIds from request body
 
     // Begin a transaction
-    await pool.query('BEGIN');
+    await pool.query("BEGIN");
 
     // Delete all existing members (except the creator) from the group
     await pool.query(
@@ -232,51 +587,152 @@ app.post("/api/update-the-group", async (req, res) => {
     }
 
     // Commit the transaction
-    await pool.query('COMMIT');
+    await pool.query("COMMIT");
 
     res.send({ message: "Group updated successfully." });
   } catch (error) {
-    await pool.query('ROLLBACK');
+    await pool.query("ROLLBACK");
     console.error(error);
-    res.status(500).send({ message: "An error occurred while updating the group." });
+    res
+      .status(500)
+      .send({ message: "An error occurred while updating the group." });
+  }
+});
+
+async function deleteExpiredInteractions() {
+  await pool.query("BEGIN");
+
+  try {
+    // Get the paths of all images to be deleted
+    const { rows: imagesToDelete } = await pool.query(`
+      SELECT uploaded_path FROM submission_dialog
+      WHERE submission_id IN (
+        SELECT id FROM user_submissions
+        WHERE (2 * 24 * 60 * 60 - EXTRACT(epoch FROM NOW() - lastuser_addition)) < 0
+      )
+    `);
+
+    // Delete the images from the filesystem
+    for (const row of imagesToDelete) {
+      if (typeof row.uploaded_path === 'string') {
+        // Assuming the actual physical path doesn't need the "uploaded-images" segment.
+        const sanitizedPath = row.uploaded_path.replace('uploaded-images\\', '');
+        const fullPath = path.join(__dirname, "imageUploaded", sanitizedPath);
+    
+        try {
+          console.log(`Attempting to delete: ${fullPath}`);
+          if (fs.existsSync(fullPath)) {
+            await fs.promises.unlink(fullPath);
+            console.log(`Successfully deleted: ${fullPath}`);
+          } else {
+            console.log(`File not found: ${fullPath}, skipping deletion.`);
+          }
+        } catch (error) {
+          console.error(`Failed to delete file ${fullPath}: `, error);
+        }
+      } else {
+        console.log('Invalid path encountered, skipping deletion.');
+      }
+    }
+    
+    
+    
+
+    // Continue with database deletions as before...
+    // First, delete from the submission_dialog table
+    await pool.query(`
+      DELETE FROM submission_dialog
+      WHERE submission_id IN (
+        SELECT id FROM user_submissions
+        WHERE (2 * 24 * 60 * 60 - EXTRACT(epoch FROM NOW() - lastuser_addition)) < 0
+      )
+    `);
+
+    // Next, delete from the submission_members table
+    await pool.query(`
+      DELETE FROM submission_members
+      WHERE submission_id IN (
+        SELECT id FROM user_submissions
+        WHERE (2 * 24 * 60 * 60 - EXTRACT(epoch FROM NOW() - lastuser_addition)) < 0
+      )
+    `);
+
+    // Finally, delete from the user_submissions table
+    await pool.query(`
+      DELETE FROM user_submissions
+      WHERE (2 * 24 * 60 * 60 - EXTRACT(epoch FROM NOW() - lastuser_addition)) < 0
+    `);
+    // Commit the transaction
+    await pool.query("COMMIT");
+  } catch (error) {
+    console.error("Error during transaction, rolling back:", error);
+    await pool.query("ROLLBACK");
+    // Decide if you want to rethrow the error or handle it differently
+  }
+}
+app.post('/api/end_interaction', async (req, res) => {
+  const { submissionId } = req.body; // Extract the submissionId from the request body
+
+  try {
+    await pool.query("BEGIN");
+
+    const updateQuery = `
+      UPDATE user_submissions
+      SET lastuser_addition = lastuser_addition - interval '2 days'
+      WHERE id = $1
+    `;
+
+    await pool.query(updateQuery, [submissionId]);
+
+    await pool.query("COMMIT");
+
+    res.json({ message: "Interaction ended successfully." });
+  } catch (error) {
+    console.error("Error during ending interaction:", error);
+    await pool.query("ROLLBACK");
+    res.status(500).send("Failed to end interaction");
   }
 });
 
 app.get("/api/my_interaction_titles", async (req, res) => {
   try {
     const loggedInId = req.query.logged_in_id; // Get the logged-in user's ID from the query parameters
-
     if (!loggedInId) {
       return res.status(400).send({ message: "Logged in ID is required." });
     }
+    await deleteExpiredInteractions();
 
     const query = `
-      SELECT 
-        us.id AS submission_id, 
-        us.title, 
-        TO_CHAR(us.created_at, 'Day, DD Month YYYY HH24:MI') AS formatted_created_at,
-        TO_CHAR(us.created_at, 'Mon DD HH24:MI') AS formatted_created_at_mobile,
-        us.user_id, 
-        u.username
-      FROM 
-        submission_members sm
-      JOIN 
-        user_submissions us ON sm.submission_id = us.id
-      JOIN 
-        users u ON us.user_id = u.id
-      WHERE 
-        sm.participating_user_id = $1;
+    SELECT 
+    us.id AS submission_id, 
+    us.title, 
+    TO_CHAR(us.created_at, 'Day, DD Month YYYY HH24:MI') AS formatted_created_at,
+    TO_CHAR(us.created_at, 'Mon DD HH24:MI') AS formatted_created_at_mobile,
+    CONCAT(
+      FLOOR(EXTRACT(epoch FROM interval '2 days' - (NOW() - us.lastuser_addition))/86400) || ' Days ',
+      FLOOR((EXTRACT(epoch FROM interval '2 days' - (NOW() - us.lastuser_addition)) % 86400) / 3600) || ' Hours ',
+      FLOOR((EXTRACT(epoch FROM interval '2 days' - (NOW() - us.lastuser_addition)) % 3600) / 60) || ' Minutes ',
+      FLOOR(EXTRACT(epoch FROM interval '2 days' - (NOW() - us.lastuser_addition)) % 60) || ' Seconds'
+    ) AS expected_end,
+    us.user_id, 
+    u.username
+  FROM 
+    submission_members sm
+  JOIN 
+    user_submissions us ON sm.submission_id = us.id
+  JOIN 
+    users u ON us.user_id = u.id
+  WHERE 
+    sm.participating_user_id = $1;  
     `;
 
     const result = await pool.query(query, [loggedInId]); // Execute the query with the logged-in user's ID
     res.json(result.rows);
   } catch (error) {
     console.error(error);
-    res
-      .status(500)
-      .send({
-        message: "An error occurred while fetching interaction titles.",
-      });
+    res.status(500).send({
+      message: "An error occurred while fetching interaction titles.",
+    });
   }
 });
 app.get("/api/interaction_user_list", async (req, res) => {
@@ -307,11 +763,10 @@ app.get("/api/interaction_user_list", async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error(error);
-    res
-      .status(500)
-      .send({
-        message: "An error occurred while fetching user list for the interaction.",
-      });
+    res.status(500).send({
+      message:
+        "An error occurred while fetching user list for the interaction.",
+    });
   }
 });
 
@@ -319,7 +774,7 @@ app.get("/api/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      "SELECT id, username, email, profile_picture FROM users WHERE id = $1",
+      "SELECT id, username, email, profile_picture, sexual_orientation, hobbies, floats_my_boat FROM users WHERE id = $1",
       [id]
     );
     res.json(result.rows[0]);
@@ -331,7 +786,7 @@ app.get("/api/users/:id", async (req, res) => {
 
 app.post("/api/users/:submissionId/text-entry", async (req, res) => {
   try {
-    const submissionId = req.params.submissionId;
+    const submissionId = req.params.submissionId; // Extract submissionId from the URL parameters
     const { userId, textContent } = req.body; // Extracting userId and textContent from the request body
 
     // Validate the received data
@@ -341,23 +796,46 @@ app.post("/api/users/:submissionId/text-entry", async (req, res) => {
         .json({ message: "User ID and text content are required." });
     }
 
+    // Start a transaction
+    await pool.query("BEGIN");
+
     // Insert into the submission_dialog table
-    const result = await pool.query(
+    const insertResult = await pool.query(
       "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content) VALUES ($1, $2, $3) RETURNING *",
       [submissionId, userId, textContent]
     );
 
-    res.json(result.rows[0]);
+    // Update the lastuser_addition field in the user_submissions table where id is equal to submissionId
+    const updateResult = await pool.query(
+      "UPDATE user_submissions SET lastuser_addition = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
+      [submissionId]
+    );
+
+    // Commit the transaction
+    await pool.query("COMMIT");
+
+    // Respond with the new dialog entry
+    // If you also want to send the updated submission, you can include updateResult.rows[0]
+    res.json({
+      dialogEntry: insertResult.rows[0],
+      submissionUpdate: updateResult.rows[0],
+    });
   } catch (error) {
+    // Rollback the transaction on error
+    await pool.query("ROLLBACK");
+
     console.error(error);
-    handleDatabaseError(error, res);
+    res.status(500).json({
+      message: "An error occurred while updating the interaction.",
+      error: error,
+    });
   }
 });
 
 app.post("/api/user_submissions", async (req, res) => {
   try {
     const { user_id, title, userIds } = req.body;
-
+    console.log("user_id still there?", user_id)
     if (!user_id || !title || !userIds || !Array.isArray(userIds)) {
       return res
         .status(400)
@@ -387,6 +865,81 @@ app.post("/api/user_submissions", async (req, res) => {
   } catch (error) {
     console.error(error);
     handleDatabaseError(error, res);
+  }
+});
+// In your server code
+
+const crypto = require('crypto');
+
+app.post("/api/password_reset_request", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // Check if the email exists in the database
+    const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+    if (user.rows.length === 0) {
+      return res.status(400).json({ message: "Email does not exist" });
+    }
+
+    // Generate a secure token
+    const resetToken = crypto.randomBytes(20).toString('hex');
+
+    // Save this token in the database associated with the user's email
+    await pool.query("UPDATE users SET token = $1 WHERE email = $2", [resetToken, email]);
+
+    // Create reset URL
+    const resetUrl = `http://${HOST}:${PORTFOREMAIL}/password-reset?token=${resetToken}`;
+
+    // Send email
+    const mailOptions = {
+      from: RESET_EMAIL,
+      to: email,
+      subject: 'Password Reset Request',
+      text: `Please click on the following link to reset your password: ${resetUrl}`
+    };
+
+    transporter.sendMail(mailOptions, async (error, info) => {
+      if (error) {
+        console.error("Error sending email: ", error);
+        // If there's an error sending the email, consider whether you should also roll back the token update
+        return res.status(500).json({ message: "Error sending email" });
+      }
+      res.status(200).json({ success: true, message: 'Reset password link has been sent to your email.' });
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post("/api/update_user_password", async (req, res) => {
+  const { token, password } = req.body;
+
+  try {
+    // First, verify the token by finding the user it belongs to
+    const user = await pool.query("SELECT * FROM users WHERE token = $1", [token]);
+
+    if (user.rows.length === 0) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    // Optionally, check if the token has expired (if you've implemented expiration)
+
+    // Hash the new password before storing it
+    const saltRounds = 10; // You can adjust salt rounds as needed
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Update the user's password and clear the token from the database
+    await pool.query("UPDATE users SET password = $1, token = NULL WHERE token = $2", [hashedPassword, token]);
+
+    // Respond to the client that the password has been reset
+    res.json({ message: "Password successfully updated" });
+
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    res.status(500).json({ message: "Server error while updating password" });
   }
 });
 
