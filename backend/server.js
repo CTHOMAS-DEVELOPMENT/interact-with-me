@@ -1,39 +1,42 @@
 const express = require("express");
 const { Pool } = require("pg");
 const multer = require("multer");
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
+const sharp = require("sharp");
+const jwt = require("jsonwebtoken");
+
 const HOST = "localhost";
-const PORTFOREMAIL= '3000'
+const PORTFOREMAIL = "3000";
 const PORTNO = 5432;
 // Create a new express application
 const app = express();
 const bcrypt = require("bcrypt");
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 //const { OpenAI } = require('openai');
 const { HfInference } = require("@huggingface/inference");
 function loadEnvVariables() {
   // Adjust if your .env file is located elsewhere. Using __dirname ensures it looks in the same directory as your server.js file.
-  const envPath = path.join(__dirname, '.env');
+  const envPath = path.join(__dirname, ".env");
   console.log(`Loading .env from: ${envPath}`); // Log the path to verify it's correct
 
   try {
-      const data = fs.readFileSync(envPath, 'utf-8');
-      console.log(`Raw .env data: ${data}`); // Log raw .env data for verification
+    const data = fs.readFileSync(envPath, "utf-8");
+    console.log(`Raw .env data: ${data}`); // Log raw .env data for verification
 
-      // Split the data on new line, compatible with both UNIX and Windows environments
-      const envVariables = data.split(/\r?\n/);
+    // Split the data on new line, compatible with both UNIX and Windows environments
+    const envVariables = data.split(/\r?\n/);
 
-      envVariables.forEach(variable => {
-          if (!variable.trim() || variable.startsWith('#')) return; // Skip empty lines and comments
+    envVariables.forEach((variable) => {
+      if (!variable.trim() || variable.startsWith("#")) return; // Skip empty lines and comments
 
-          const [key, value] = variable.split('=');
-          if (key && value) {
-              process.env[key.trim()] = value.trim();
-          }
-      });
+      const [key, value] = variable.split("=");
+      if (key && value) {
+        process.env[key.trim()] = value.trim();
+      }
+    });
   } catch (error) {
-      console.error("Error loading .env variables:", error);
+    console.error("Error loading .env variables:", error);
   }
 }
 
@@ -42,6 +45,7 @@ loadEnvVariables();
 
 const RESET_EMAIL = process.env.RESET_EMAIL;
 const HF_TOKEN = process.env.HF_TOKEN;
+const JWT_SECRET = process.env.LG_TOKEN;
 // Initialize the HfInference object with your API token
 const inference = new HfInference(HF_TOKEN);
 
@@ -49,8 +53,8 @@ const inference = new HfInference(HF_TOKEN);
   try {
     // Perform a translation task
     const response = await inference.translation({
-      model: 't5-base',
-      inputs: 'My name is Wolfgang and I live in Amsterdam'
+      model: "t5-base",
+      inputs: "My name is Wolfgang and I live in Amsterdam",
     });
 
     // Log the response to the console
@@ -63,16 +67,15 @@ const inference = new HfInference(HF_TOKEN);
 //   apiKey: process.env.OPENAI_API_KEY,
 // });
 
-
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // Example using Gmail
+  service: "gmail", // Example using Gmail
   auth: {
     user: RESET_EMAIL,
-    pass: 'oevo zajd vezi qjka',
+    pass: "oevo zajd vezi qjka",
   },
   tls: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 app.use(express.json());
 // Serve static files from the 'backend/imageUploaded' directory
@@ -121,7 +124,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-app.post('/api/generate-text', async (req, res) => {
+app.post("/api/generate-text", async (req, res) => {
   const { prompt } = req.body; // Extract the prompt from the request body
 
   // Function to remove the prompt from the generated text
@@ -140,7 +143,7 @@ app.post('/api/generate-text', async (req, res) => {
 
   try {
     const response = await inference.textGeneration({
-      model: 'EleutherAI/gpt-neox-20b', // Adjust model as needed
+      model: "EleutherAI/gpt-neox-20b", // Adjust model as needed
       inputs: prompt,
       parameters: { max_length: 500 }, // Customize parameters as needed
       options: { use_cache: false },
@@ -148,7 +151,7 @@ app.post('/api/generate-text', async (req, res) => {
 
     // Access the generated text directly
     const generatedText = response.generated_text; // Adjust based on actual output
-    
+
     // Use the function to clean the generated text by removing the prompt
     const cleanedText = removePromptFromGeneratedText(prompt, generatedText);
 
@@ -163,12 +166,12 @@ app.post('/api/generate-text', async (req, res) => {
     res.status(500).send("Failed to fetch response from Hugging Face");
   }
 });
-app.post('/api/summarize-text', async (req, res) => {
+app.post("/api/summarize-text", async (req, res) => {
   const { text } = req.body;
 
   try {
     const response = await inference.summarization({
-      model: 'facebook/bart-large-cnn',
+      model: "facebook/bart-large-cnn",
       inputs: text,
       parameters: { max_length: 200, min_length: 50, do_sample: false },
     });
@@ -187,8 +190,6 @@ app.post('/api/summarize-text', async (req, res) => {
   }
 });
 
-
-
 // Define a test route
 app.get("/test-db", async (req, res) => {
   try {
@@ -199,7 +200,43 @@ app.get("/test-db", async (req, res) => {
     res.status(500).send("Error while testing database");
   }
 });
+
+app.get("/api/authorised/:userId", async (req, res) => {
+  let tokenMatches = false;
+  let token = "";
+  const authHeader = req.headers.authorization;
+  const userId = req.params.userId;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // If not, respond with 401 Unauthorized and a message
+    return res.status(401).json({ error: "Unauthorized: Missing or invalid Authorization header" });
+  }
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    // Extract the token from the Authorization header
+    token = authHeader.substring(7, authHeader.length);
+    //console.log("Token from the front:", token);
+    //console.log("userId from the front:", userId);
+  }
+
+  try {
+    // Query the users table for the user with the given userId
+    const queryResult = await pool.query('SELECT token FROM users WHERE id = $1', [userId]);
+    
+    if (queryResult.rows.length > 0) {
+      const userToken = queryResult.rows[0].token;
+      
+      // Check if the token from the database matches the token provided in the request
+      tokenMatches = userToken === token;
+      //console.log("Token matches:", tokenMatches);
+    }
+  } catch (err) {
+    console.error("Database error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+  
+  res.json(tokenMatches);
+});
 // Login route
+
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -212,11 +249,20 @@ app.post("/api/login", async (req, res) => {
 
       const match = await bcrypt.compare(password, user.password);
       if (match) {
+        const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
+          expiresIn: "1h",
+        }); // Adjust expiresIn as needed
+        await pool.query("UPDATE users SET token = $1 WHERE id = $2", [
+          token,
+          user.id,
+        ]);
+
         // Include userId in the response
         res.json({
           success: true,
           message: "Login successful.",
           userId: user.id,
+          token: token,
         });
       } else {
         res
@@ -234,7 +280,14 @@ app.post("/api/login", async (req, res) => {
 
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, email, password, hobby, sexualOrientation, floatsMyBoat } = req.body;
+    const {
+      username,
+      email,
+      password,
+      hobby,
+      sexualOrientation,
+      floatsMyBoat,
+    } = req.body;
 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
@@ -253,7 +306,8 @@ app.post("/api/register", async (req, res) => {
 
 app.put("/api/update_profile/:id", async (req, res) => {
   const { id } = req.params;
-  let { username, email, password, hobby, sexualOrientation, floatsMyBoat } = req.body;
+  let { username, email, password, hobby, sexualOrientation, floatsMyBoat } =
+    req.body;
 
   // Validation for password length if it's not empty
   if (password && password.trim().length < 8) {
@@ -262,12 +316,15 @@ app.put("/api/update_profile/:id", async (req, res) => {
 
   // Optionally, hash the new password before storing it
   const saltRounds = 10;
-  const hashedPassword = password ? await bcrypt.hash(password, saltRounds) : undefined;
+  const hashedPassword = password
+    ? await bcrypt.hash(password, saltRounds)
+    : undefined;
 
   // Substitute empty strings with specified default values for enum fields
-  sexualOrientation = sexualOrientation === "" ? 'Undisclosed' : sexualOrientation;
-  hobby = hobby === "" ? 'Other' : hobby;
-  floatsMyBoat = floatsMyBoat === "" ? 'Other (Not Listed)' : floatsMyBoat;
+  sexualOrientation =
+    sexualOrientation === "" ? "Undisclosed" : sexualOrientation;
+  hobby = hobby === "" ? "Other" : hobby;
+  floatsMyBoat = floatsMyBoat === "" ? "Other (Not Listed)" : floatsMyBoat;
 
   const updateQuery = `
     UPDATE users SET
@@ -281,7 +338,15 @@ app.put("/api/update_profile/:id", async (req, res) => {
     RETURNING *;
   `;
 
-  const values = [username, email, hashedPassword, hobby, sexualOrientation, floatsMyBoat, id];
+  const values = [
+    username,
+    email,
+    hashedPassword,
+    hobby,
+    sexualOrientation,
+    floatsMyBoat,
+    id,
+  ];
 
   try {
     const result = await pool.query(updateQuery, values);
@@ -295,9 +360,6 @@ app.put("/api/update_profile/:id", async (req, res) => {
     res.status(500).send("Failed to update profile");
   }
 });
-
-
-
 
 app.get("/api/users", async (req, res) => {
   try {
@@ -333,12 +395,17 @@ app.get("/api/users/:userId/profile-picture", async (req, res) => {
   try {
     const profilePicturePath = await findUserById(userId);
     if (!profilePicturePath) {
-      return res.status(404).json({ message: "User not found or no profile picture set" });
+      return res
+        .status(404)
+        .json({ message: "User not found or no profile picture set" });
     }
 
     // Adjust the path to be relative to the static directory you've set up in Express
     // Assuming profilePicturePath format is "backend/imageUploaded/file-name.jpg"
-    const urlPath = profilePicturePath.replace(/^backend\\imageUploaded\\/, '/uploaded-images/');
+    const urlPath = profilePicturePath.replace(
+      /^backend\\imageUploaded\\/,
+      "/uploaded-images/"
+    );
     res.json({ profilePicture: urlPath });
   } catch (error) {
     console.error("Error fetching profile picture:", error);
@@ -346,63 +413,95 @@ app.get("/api/users/:userId/profile-picture", async (req, res) => {
   }
 });
 
-app.post("/api/users/:userId/profile-picture", upload.single("file"), async (req, res) => {
-  try {
-    const userId = req.params.userId;
-    // Start a transaction
-    await pool.query("BEGIN");
+app.post(
+  "/api/users/:userId/profile-picture",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      // Start a transaction
+      await pool.query("BEGIN");
 
-    // First, retrieve the current profile picture path for the user, if it exists
-    const { rows: existingUser } = await pool.query(
-      "SELECT profile_picture FROM users WHERE id = $1",
-      [userId]
-    );
+      const filePath = req.file.path;
+      const thumbnailPath = path.join(
+        path.dirname(filePath),
+        'thumb-' + path.basename(filePath)
+      );
+      
+      // Retrieve the original image dimensions
+      const metadata = await sharp(filePath).metadata();
+      console.log("filePath",filePath)
+      console.log("thumbnailPath",thumbnailPath)
+      const longerDimension = metadata.width > metadata.height ? 'width' : 'height';
+      const resizeOptions = {
+        [longerDimension]: 100, // Set the longer dimension to 100 pixels
+      };
 
-    // If there's an existing profile picture, delete the file
-    if (existingUser.length > 0 && existingUser[0].profile_picture) {
-      const existingFilePath = existingUser[0].profile_picture;
-      // Assuming your file paths are stored relative to a base directory you define (for safety)
-      //const baseDir = path.resolve(__dirname, 'pathToYourImagesDirectory'); // Adjust to your images directory
-      const sanitizedPath = existingFilePath.replace(/backend\\imageUploaded\\/g, '');
-      const baseDir = path.resolve(__dirname, 'imageUploaded');
-      const fullPath = path.join(baseDir, sanitizedPath);
+      // Generate thumbnail while maintaining aspect ratio
+      await sharp(filePath)
+        .resize(resizeOptions)
+        .toFile(thumbnailPath);
 
-      if (fs.existsSync(fullPath)) {
-        await fs.promises.unlink(fullPath);
-        console.log(`Deleted existing profile picture: ${fullPath}`);
+      // First, retrieve the current profile picture path for the user, if it exists
+      const { rows: existingUser } = await pool.query(
+        "SELECT profile_picture FROM users WHERE id = $1",
+        [userId]
+      );
+
+      // If there's an existing profile picture, delete the file
+      if (existingUser.length > 0 && existingUser[0].profile_picture) {
+        const existingFilePath = existingUser[0].profile_picture;
+        // Assuming your file paths are stored relative to a base directory you define (for safety)
+        //const baseDir = path.resolve(__dirname, 'pathToYourImagesDirectory'); // Adjust to your images directory
+        const sanitizedPath = existingFilePath.replace(
+          /backend\\imageUploaded\\/g,
+          ""
+        );
+        const baseDir = path.resolve(__dirname, "imageUploaded");
+        const fullPath = path.join(baseDir, sanitizedPath);
+
+        if (fs.existsSync(fullPath)) {
+          await fs.promises.unlink(fullPath);
+          console.log(`Deleted existing profile picture: ${fullPath}`);
+        }
       }
+
+      // Update the user's profile picture path in the database
+      const profilePicturePath = req.file.path;
+      const result = await pool.query(
+        "UPDATE users SET profile_picture = $1 WHERE id = $2 RETURNING *",
+        [profilePicturePath, userId]
+      );
+
+      // Commit the transaction
+      await pool.query("COMMIT");
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      // Rollback in case of error
+      await pool.query("ROLLBACK");
+      console.error(error);
+      handleDatabaseError(error, res);
     }
-
-    // Update the user's profile picture path in the database
-    const profilePicturePath = req.file.path;
-    const result = await pool.query(
-      "UPDATE users SET profile_picture = $1 WHERE id = $2 RETURNING *",
-      [profilePicturePath, userId]
-    );
-
-    // Commit the transaction
-    await pool.query("COMMIT");
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    // Rollback in case of error
-    await pool.query("ROLLBACK");
-    console.error(error);
-    handleDatabaseError(error, res);
   }
-});
+);
 app.delete("/api/submission-dialog/:dialogId", async (req, res) => {
   const { dialogId } = req.params;
 
   try {
-    const selectQuery = "SELECT uploaded_path FROM submission_dialog WHERE id = $1";
+    const selectQuery =
+      "SELECT uploaded_path FROM submission_dialog WHERE id = $1";
     const selectResult = await pool.query(selectQuery, [dialogId]);
 
     if (selectResult.rows.length > 0) {
       const { uploaded_path } = selectResult.rows[0];
 
       if (uploaded_path) {
-        const filePath = path.join(__dirname, 'imageUploaded', path.basename(uploaded_path));
+        const filePath = path.join(
+          __dirname,
+          "imageUploaded",
+          path.basename(uploaded_path)
+        );
         try {
           if (fs.existsSync(filePath)) {
             await fs.promises.unlink(filePath); // Asynchronously delete the file
@@ -425,9 +524,6 @@ app.delete("/api/submission-dialog/:dialogId", async (req, res) => {
     res.status(500).send("Error during the deletion process.");
   }
 });
-
-
-
 
 /** */
 app.post(
@@ -456,48 +552,63 @@ app.post(
   }
 );
 
+app.post(
+  "/api/submission-dialog/:dialogId/update-item",
+  upload.single("file"),
+  async (req, res) => {
+    const dialogId = req.params.dialogId; // Get the dialog ID from the URL parameter
+    try {
+      // Start a transaction
+      await pool.query("BEGIN");
 
-app.post("/api/submission-dialog/:dialogId/update-item", upload.single("file"), async (req, res) => {
-  const dialogId = req.params.dialogId; // Get the dialog ID from the URL parameter
-  try {
-    // Start a transaction
-    await pool.query("BEGIN");
-    
-    // Retrieve the current uploaded_path
-    const selectQuery = "SELECT uploaded_path FROM submission_dialog WHERE id = $1";
-    const selectResult = await pool.query(selectQuery, [dialogId]);
-    if (selectResult.rows.length > 0 && selectResult.rows[0].uploaded_path) {
-      // Delete the old file
-      const oldFilePath = selectResult.rows[0].uploaded_path;
-      const fullOldFilePath = path.join(__dirname, 'imageUploaded', path.basename(oldFilePath));
-      if (fs.existsSync(fullOldFilePath)) {
-        await fs.promises.unlink(fullOldFilePath);
-        console.log(`Deleted old file: ${fullOldFilePath}`);
+      // Retrieve the current uploaded_path
+      const selectQuery =
+        "SELECT uploaded_path FROM submission_dialog WHERE id = $1";
+      const selectResult = await pool.query(selectQuery, [dialogId]);
+      if (selectResult.rows.length > 0 && selectResult.rows[0].uploaded_path) {
+        // Delete the old file
+        const oldFilePath = selectResult.rows[0].uploaded_path;
+        const fullOldFilePath = path.join(
+          __dirname,
+          "imageUploaded",
+          path.basename(oldFilePath)
+        );
+        if (fs.existsSync(fullOldFilePath)) {
+          await fs.promises.unlink(fullOldFilePath);
+          console.log(`Deleted old file: ${fullOldFilePath}`);
+        }
+      } else {
+        throw new Error("No existing file path found.");
       }
-    } else {
-      throw new Error('No existing file path found.');
-    }
-    
-    // Construct the new file path
-    const uploadedFilePath = path.join("/uploaded-images", path.basename(req.file.path));
 
-    // Update the uploaded_path in the submission_dialog table
-    const updateQuery = "UPDATE submission_dialog SET uploaded_path = $1 WHERE id = $2 RETURNING *";
-    const updateResult = await pool.query(updateQuery, [uploadedFilePath, dialogId]);
-    if (updateResult.rows.length) {
-      // Commit the transaction
-      await pool.query("COMMIT");
-      res.json(updateResult.rows[0]); // Send back the updated record
-    } else {
-      throw new Error('No dialog found to update.');
+      // Construct the new file path
+      const uploadedFilePath = path.join(
+        "/uploaded-images",
+        path.basename(req.file.path)
+      );
+
+      // Update the uploaded_path in the submission_dialog table
+      const updateQuery =
+        "UPDATE submission_dialog SET uploaded_path = $1 WHERE id = $2 RETURNING *";
+      const updateResult = await pool.query(updateQuery, [
+        uploadedFilePath,
+        dialogId,
+      ]);
+      if (updateResult.rows.length) {
+        // Commit the transaction
+        await pool.query("COMMIT");
+        res.json(updateResult.rows[0]); // Send back the updated record
+      } else {
+        throw new Error("No dialog found to update.");
+      }
+    } catch (error) {
+      // Rollback in case of error
+      await pool.query("ROLLBACK");
+      console.error(error);
+      res.status(500).send("Server error occurred while updating the item.");
     }
-  } catch (error) {
-    // Rollback in case of error
-    await pool.query("ROLLBACK");
-    console.error(error);
-    res.status(500).send("Server error occurred while updating the item.");
   }
-});
+);
 app.patch("/api/submission-dialog/:dialogId", async (req, res) => {
   const dialogId = req.params.dialogId;
   const newTextContent = req.body.text_content;
@@ -511,7 +622,8 @@ app.patch("/api/submission-dialog/:dialogId", async (req, res) => {
     await pool.query("BEGIN");
 
     // Update text_content in the submission_dialog table
-    const updateQuery = "UPDATE submission_dialog SET text_content = $1 WHERE id = $2 RETURNING *";
+    const updateQuery =
+      "UPDATE submission_dialog SET text_content = $1 WHERE id = $2 RETURNING *";
     const result = await pool.query(updateQuery, [newTextContent, dialogId]);
 
     if (result.rows.length) {
@@ -525,10 +637,11 @@ app.patch("/api/submission-dialog/:dialogId", async (req, res) => {
     // Rollback in case of error
     await pool.query("ROLLBACK");
     console.error(error);
-    res.status(500).send("Server error occurred while updating the text content.");
+    res
+      .status(500)
+      .send("Server error occurred while updating the text content.");
   }
 });
-
 
 app.get("/api/users/:submissionId/posts", async (req, res) => {
   try {
@@ -544,6 +657,7 @@ app.get("/api/users/:submissionId/posts", async (req, res) => {
     sd.uploaded_path, 
     sd.created_at,
     u.username,
+    u.profile_picture,
     CASE 
         WHEN sd.uploaded_path IS NULL THEN 'text' 
         ELSE 'media' 
@@ -614,11 +728,14 @@ async function deleteExpiredInteractions() {
 
     // Delete the images from the filesystem
     for (const row of imagesToDelete) {
-      if (typeof row.uploaded_path === 'string') {
+      if (typeof row.uploaded_path === "string") {
         // Assuming the actual physical path doesn't need the "uploaded-images" segment.
-        const sanitizedPath = row.uploaded_path.replace('uploaded-images\\', '');
+        const sanitizedPath = row.uploaded_path.replace(
+          "uploaded-images\\",
+          ""
+        );
         const fullPath = path.join(__dirname, "imageUploaded", sanitizedPath);
-    
+
         try {
           console.log(`Attempting to delete: ${fullPath}`);
           if (fs.existsSync(fullPath)) {
@@ -631,12 +748,9 @@ async function deleteExpiredInteractions() {
           console.error(`Failed to delete file ${fullPath}: `, error);
         }
       } else {
-        console.log('Invalid path encountered, skipping deletion.');
+        console.log("Invalid path encountered, skipping deletion.");
       }
     }
-    
-    
-    
 
     // Continue with database deletions as before...
     // First, delete from the submission_dialog table
@@ -670,7 +784,7 @@ async function deleteExpiredInteractions() {
     // Decide if you want to rethrow the error or handle it differently
   }
 }
-app.post('/api/end_interaction', async (req, res) => {
+app.post("/api/end_interaction", async (req, res) => {
   const { submissionId } = req.body; // Extract the submissionId from the request body
 
   try {
@@ -835,7 +949,7 @@ app.post("/api/users/:submissionId/text-entry", async (req, res) => {
 app.post("/api/user_submissions", async (req, res) => {
   try {
     const { user_id, title, userIds } = req.body;
-    console.log("user_id still there?", user_id)
+    console.log("user_id still there?", user_id);
     if (!user_id || !title || !userIds || !Array.isArray(userIds)) {
       return res
         .status(400)
@@ -869,24 +983,29 @@ app.post("/api/user_submissions", async (req, res) => {
 });
 // In your server code
 
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 app.post("/api/password_reset_request", async (req, res) => {
   const { email } = req.body;
 
   try {
     // Check if the email exists in the database
-    const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const user = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
 
     if (user.rows.length === 0) {
       return res.status(400).json({ message: "Email does not exist" });
     }
 
     // Generate a secure token
-    const resetToken = crypto.randomBytes(20).toString('hex');
+    const resetToken = crypto.randomBytes(20).toString("hex");
 
     // Save this token in the database associated with the user's email
-    await pool.query("UPDATE users SET token = $1 WHERE email = $2", [resetToken, email]);
+    await pool.query("UPDATE users SET token = $1 WHERE email = $2", [
+      resetToken,
+      email,
+    ]);
 
     // Create reset URL
     const resetUrl = `http://${HOST}:${PORTFOREMAIL}/password-reset?token=${resetToken}`;
@@ -895,8 +1014,8 @@ app.post("/api/password_reset_request", async (req, res) => {
     const mailOptions = {
       from: RESET_EMAIL,
       to: email,
-      subject: 'Password Reset Request',
-      text: `Please click on the following link to reset your password: ${resetUrl}`
+      subject: "Password Reset Request",
+      text: `Please click on the following link to reset your password: ${resetUrl}`,
     };
 
     transporter.sendMail(mailOptions, async (error, info) => {
@@ -905,9 +1024,13 @@ app.post("/api/password_reset_request", async (req, res) => {
         // If there's an error sending the email, consider whether you should also roll back the token update
         return res.status(500).json({ message: "Error sending email" });
       }
-      res.status(200).json({ success: true, message: 'Reset password link has been sent to your email.' });
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: "Reset password link has been sent to your email.",
+        });
     });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -919,7 +1042,9 @@ app.post("/api/update_user_password", async (req, res) => {
 
   try {
     // First, verify the token by finding the user it belongs to
-    const user = await pool.query("SELECT * FROM users WHERE token = $1", [token]);
+    const user = await pool.query("SELECT * FROM users WHERE token = $1", [
+      token,
+    ]);
 
     if (user.rows.length === 0) {
       return res.status(400).json({ message: "Invalid or expired token" });
@@ -932,11 +1057,13 @@ app.post("/api/update_user_password", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Update the user's password and clear the token from the database
-    await pool.query("UPDATE users SET password = $1, token = NULL WHERE token = $2", [hashedPassword, token]);
+    await pool.query(
+      "UPDATE users SET password = $1, token = NULL WHERE token = $2",
+      [hashedPassword, token]
+    );
 
     // Respond to the client that the password has been reset
     res.json({ message: "Password successfully updated" });
-
   } catch (error) {
     console.error("Error resetting password:", error);
     res.status(500).json({ message: "Server error while updating password" });

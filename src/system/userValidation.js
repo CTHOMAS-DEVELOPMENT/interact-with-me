@@ -1,6 +1,6 @@
 // userValidation.js
 
-const validateUser = (formData) => {
+const validateUser = (formData, ignoreValidation=false) => {
     const errors = {};
   
     // Username validation
@@ -15,9 +15,9 @@ const validateUser = (formData) => {
     if (!formData.email.match(emailPattern)) {
       errors.email = "Invalid email format";
     }
-  
-    // Password validation
-    if (formData.password.length < 8) {
+    if(ignoreValidation) { return errors;}
+    // Password validation may be validated at the backend
+    if (formData.password.length < 8){
       errors.password = "Password must be at least 8 characters long";
     } else if (!/[A-Z]/.test(formData.password)) {
       errors.password = "Password must contain at least 1 uppercase letter";

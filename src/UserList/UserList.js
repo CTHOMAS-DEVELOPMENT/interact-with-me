@@ -3,15 +3,29 @@ import { useLocation, useNavigate } from "react-router-dom";
 import InteractionTitles from "../InteractionTitles/InteractionTitles";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { checkAuthorization } from "../system/authService"; // Ensure the path is correct
 const UsersList = () => {
   const [users, setUsers] = useState([]);
   const [user, setUser] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
+  const [authError, setAuthError] = useState(false); // State for authorization error
   const navigate = useNavigate();
   const location = useLocation();
   const loggedInUserId = location.state ? location.state.userId : null;
-
   useEffect(() => {
+    if (loggedInUserId) {
+      checkAuthorization(loggedInUserId)
+        .then((isAuthorized) => {
+          if (!isAuthorized) {
+            setAuthError(true); // Handle unauthorized access
+            // Optionally, redirect the user
+            // navigate("/login");
+          }
+        });
+    }
+  }, [loggedInUserId, navigate]);
+  useEffect(() => {
+    if (!authError) {
     fetch("/api/users")
       .then((response) => response.json())
       .then((data) => {
@@ -22,7 +36,8 @@ const UsersList = () => {
         setUsers(data.filter((user) => user.id !== loggedInUserId));
       })
       .catch((error) => console.error("Error fetching users:", error));
-  }, [loggedInUserId]);
+    }
+  }, [loggedInUserId, authError]);
   const handleLogoutClick = () => {
     navigate("/"); // Update for v6
   };
@@ -60,7 +75,11 @@ const UsersList = () => {
       }, // Passing loggedInUserId to NewSubmission
     });
   };
-
+  if (authError) {
+    return (
+      <div>Unauthorized access. Please <a href="/">log in</a>.</div>
+    );
+  }
   return (
     <div>
       <div className="button-container">

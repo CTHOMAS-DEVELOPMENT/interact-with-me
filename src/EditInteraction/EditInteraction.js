@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AlertMessage from "../system/AlertMessage";
 import { Button } from "react-bootstrap";
+import { checkAuthorization } from '../system/authService'; // Adjust this import as necessary
 import "bootstrap/dist/css/bootstrap.min.css";
 
 const EditInteraction = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { submissionId, loggedInUserId } = location.state;
+  const [authError, setAuthError] = useState(false);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
   const [title, setTitle] = useState("");
@@ -19,6 +21,23 @@ const EditInteraction = () => {
   const [isChanged, setIsChanged] = useState(false); // State to track changes
 
   useEffect(() => {
+    // Authentication check
+    if (loggedInUserId) {
+      checkAuthorization(loggedInUserId)
+        .then((isAuthorized) => {
+          if (!isAuthorized) {
+            setAuthError(true);
+            // Optionally, navigate to a login or unauthorized access page
+            // navigate("/login");
+          } else {
+            // Proceed with fetching interaction details if authorized
+            fetchInteractionDetails();
+            fetchAllUsers();
+          }
+        });
+    }
+  }, [loggedInUserId, navigate]);
+  const fetchInteractionDetails = () => {
     fetch(`/api/interaction_user_list?submission_id=${submissionId}`)
       .then((response) => response.json())
       .then((data) => {
@@ -36,8 +55,9 @@ const EditInteraction = () => {
             setType("error");
         }
       );
+  };
 
-    // Fetch all users
+  const fetchAllUsers = () => {
     fetch("/api/users")
       .then((response) => response.json())
       .then((data) =>
@@ -48,8 +68,8 @@ const EditInteraction = () => {
         setMessage("Error fetching users");
         setType("error");
     });
-      
-  }, [submissionId, loggedInUserId]);
+  };
+
   const handleCheckboxChange = (userId) => {
     setSelectedUserIds((prevSelectedUserIds) => {
       const updatedSelectedUserIds = new Set(prevSelectedUserIds);
@@ -104,7 +124,9 @@ const EditInteraction = () => {
         setType("error");
       });
   };
-
+  if (authError) {
+    return <div>Unauthorized. Please log in.</div>;
+  }
   // Render the component
   return (
     <div>

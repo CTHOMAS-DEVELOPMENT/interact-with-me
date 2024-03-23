@@ -2,12 +2,13 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
-
+import { checkAuthorization } from '../system/authService';
 const UserProfile = () => {
   const { userId } = useParams();
   const location = useLocation();
   const state = location.state || {};
   const loggedInUserId = state.loggedInUserId;
+  const [authError, setAuthError] = useState(false);
   const navigate = useNavigate();
 
   const handleNewInteraction = () => {
@@ -23,11 +24,33 @@ const UserProfile = () => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Authorization check
+    if (loggedInUserId) {
+      checkAuthorization(loggedInUserId)
+        .then((isAuthorized) => {
+          if (!isAuthorized) {
+            setAuthError(true); // Handle unauthorized access
+            // Optionally, redirect the user
+            // navigate("/login");
+          } else {
+            fetchUserProfile(); // Fetch user profile if authorized
+          }
+        });
+    }
+  }, [loggedInUserId, navigate]);
+
+  const fetchUserProfile = () => {
     fetch(`/api/users/${userId}`)
       .then((response) => response.json())
       .then((data) => setUser(data))
       .catch((error) => console.error("Error fetching user:", error));
-  }, [userId]);
+  };
+
+  if (authError) {
+    return (
+      <div>Unauthorized access. Please <a href="/">log in</a>.</div>
+    );
+  }
 
   if (!user) {
     return <div>Loading...</div>;

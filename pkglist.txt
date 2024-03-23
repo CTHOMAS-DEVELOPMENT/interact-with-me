@@ -1,16 +1,41 @@
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "bad-words": "^3.0.4",
-    X"bootstrap": "^5.3.2",
-    X"concurrently": "^8.2.2",
-    X"crypto": "^1.0.1",
-    "moment": "^2.30.1",
-    X"nodemailer": "^6.9.9",
-    X"react": "^18.2.0",
-    X"react-bootstrap": "^2.10.0",
-    X"react-dom": "^18.2.0",
-    X"react-image-file-resizer": "^0.4.8",
-    X"react-router-dom": "^6.21.0",
-    X"react-scripts": "^3.0.1",
-    "web-vitals": "^2.1.4"
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'flabyagal'; // Use an environment variable for the secret in production
+
+// Inside your login route, after verifying the user's credentials
+const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' }); // Adjust expiresIn as needed
+res.json({
+  success: true,
+  message: "Login successful.",
+  userId: user.id,
+  token // Send the token back to the client
+});
+
+// Inside the .then((data) => { ... }) of your fetch call in LoginForm
+if (data.success) {
+  localStorage.setItem('token', data.token); // Store the token
+  // Navigate or perform other actions as needed
+}
+
+const token = localStorage.getItem('token');
+fetch("/api/protected-route", {
+  headers: {
+    "Authorization": `Bearer ${token}`
+  },
+  // Other fetch options
+});
+
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'your_secret_key';
+
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Extract the token from the header
+
+    if (token == null) return res.sendStatus(401); // No token provided
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403); // Token is invalid or expired
+        req.user = user; // Add the user payload to the request
+        next(); // Proceed to the next middleware or request handler
+    });
+}

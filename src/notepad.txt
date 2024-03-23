@@ -1,0 +1,27 @@
+const extractToken = (req, res, next) => {
+  // Get the Authorization header from the request
+  const authHeader = req.headers.authorization;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Extract the token from the Authorization header
+    const token = authHeader.slice(7);
+    // Attach the token to the request object
+    req.token = token;
+    next(); // Proceed to the next middleware or route handler
+  } else {
+    // If no token is found or the Authorization header is not as expected
+    res.status(401).json({ message: 'Authorization token is missing or invalid' });
+  }
+};
+
+// Use the middleware on the /authorised route to extract token
+app.get("/authorised", extractToken, async (req, res) => {
+  // The token is now attached to the req object by the middleware
+  const tokenFromFront = req.token;
+
+  // Log the token to the console
+  console.log("Token from the front:", tokenFromFront);
+
+  // Respond with true to indicate the dummy endpoint was hit successfully
+  res.json(true);
+});

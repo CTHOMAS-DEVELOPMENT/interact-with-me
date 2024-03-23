@@ -59,6 +59,8 @@ const LoginForm = () => {
           if (data.success) {
             setMessage("Login successful");
             setType("success");
+            console.log("data.token",data.token)
+            localStorage.setItem('token', data.token);
             navigate("/userlist", { state: { userId: data.userId } }); // Update for v6
             //navigate('/feed', { state: { userId: data.userId } }); // Update for v6
           } else {

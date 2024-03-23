@@ -1,16 +1,23 @@
 import React, { useState } from "react";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+import AlertMessage from "../system/AlertMessage";
+
+import { Rocket, RocketFill } from "react-bootstrap-icons";
 const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
   const [textContent, setTextContent] = useState("");
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isImageHovered, setIsImageHovered] = useState(false);
+  const [message, setMessage] = useState("");
+  const [type, setType] = useState("info");
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!textContent.trim()) {
-      alert("Please enter some text.");
+      setMessage("Please enter some text");
+      setType("error");
       return;
     }
-
+    setIsSubmitting(true); // Set submitting state to true
     try {
       const response = await fetch(`/api/users/${submissionId}/text-entry`, {
         method: "POST",
@@ -31,20 +38,30 @@ const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
       }
     } catch (error) {
       console.error("Error submitting text:", error);
+    } finally {
+      setIsSubmitting(false); // Reset submitting state regardless of the outcome
     }
   };
 
   return (
     <div className="text-entry">
       <form onSubmit={handleSubmit}>
-        <div className="button-stack">
+        <div className="text-input-and-button">
           <textarea
             value={textContent}
             onChange={(e) => setTextContent(e.target.value)}
             placeholder="What's on your mind?"
+            disabled={isSubmitting}
           />
-          <Button type="submit" variant="outline-info" className="btn-sm">
-            Post
+          {message && <AlertMessage message={message} type={type} />}
+          <Button
+            type="submit"
+            variant="outline-info"
+            className="btn-icon"
+            onMouseEnter={() => setIsImageHovered(true)}
+            onMouseLeave={() => setIsImageHovered(false)}
+          >
+            {isImageHovered ? <RocketFill size={25} /> : <Rocket size={25} />}
           </Button>
         </div>
       </form>

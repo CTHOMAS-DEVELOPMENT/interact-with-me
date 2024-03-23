@@ -5,12 +5,13 @@ import validateUser from "../system/userValidation.js";
 import ViewImage from "./ViewImage.js";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { checkAuthorization } from '../system/authService'; // Ensure this path matches your file structure
 
 const UpdateProfile = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const userId = location.state?.userId;
-
+  const [authError, setAuthError] = useState(false);
   // Dropdown options extracted from environment variables
   const hobbyOptions = process.env.REACT_APP_HOBBY_TYPE.split(",");
   const sexualOrientationOptions =
@@ -29,28 +30,40 @@ const UpdateProfile = () => {
 
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
-
   useEffect(() => {
     if (userId) {
-      fetch(`/api/users/${userId}`)
-        .then((response) => response.json())
-        .then((user) => {
-          setFormData({
-            username: user.username || "",
-            email: user.email || "",
-            password: "", // Password should not be fetched for security reasons
-            hobby: user.hobbies || "",
-            sexualOrientation: user.sexual_orientation || "",
-            floatsMyBoat: user.floats_my_boat || "",
-          });
-        })
-        .catch((error) => {
-          console.error("Error fetching user data:", error);
-          setMessage("Failed to load user data");
-          setType("error");
+      checkAuthorization(userId)
+        .then(isAuthorized => {
+          if (!isAuthorized) {
+            setAuthError(true);
+            // Optionally, you could navigate to a login page instead of setting an error
+            // navigate("/login");
+          } else {
+            // If authorized, proceed to fetch user data
+            fetchUserData();
+          }
         });
     }
-  }, [userId]);
+  }, [userId, navigate]);
+  const fetchUserData = () => {
+    fetch(`/api/users/${userId}`)
+      .then(response => response.json())
+      .then(user => {
+        setFormData({
+          username: user.username || "",
+          email: user.email || "",
+          password: "", // Password should not be fetched for security reasons
+          hobby: user.hobbies || "",
+          sexualOrientation: user.sexual_orientation || "",
+          floatsMyBoat: user.floats_my_boat || "",
+        });
+      })
+      .catch(error => {
+        console.error("Error fetching user data:", error);
+        setMessage("Failed to load user data");
+        setType("error");
+      });
+  };
 
   const handleInputChange = (event) => {
     const { name, value } = event.target;
@@ -79,7 +92,7 @@ const UpdateProfile = () => {
     // Use a brief timeout to ensure the reset happens before setting the new message
 
     console.log("formData", formData);
-    const validationErrors = validateUser(formData);
+    const validationErrors = validateUser(formData,true);
     console.log("validationErrors", validationErrors);
     if (Object.keys(validationErrors).length === 0) {
       // No validation errors, proceed with form submission
@@ -109,7 +122,9 @@ const UpdateProfile = () => {
       
     }
   };
-
+  if (authError) {
+    return <div>Unauthorized. Please log in.</div>;
+  }
   return (
     <div>
       <Button

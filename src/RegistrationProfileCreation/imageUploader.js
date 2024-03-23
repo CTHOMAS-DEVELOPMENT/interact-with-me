@@ -25,6 +25,8 @@ const ImageUploader = ({ userId, onUpload }) => {
       );
     });
 
+
+    
   const handleSubmit = async (event) => {
     event.preventDefault();
 
