@@ -5,7 +5,7 @@ import validateUser from "../system/userValidation.js";
 import ViewImage from "./ViewImage.js";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { checkAuthorization } from '../system/authService'; // Ensure this path matches your file structure
+import { checkAuthorization } from "../system/authService"; // Ensure this path matches your file structure
 
 const UpdateProfile = () => {
   const location = useLocation();
@@ -26,29 +26,31 @@ const UpdateProfile = () => {
     hobby: "",
     sexualOrientation: "",
     floatsMyBoat: "",
+    sex: "",
   });
 
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+
+
   useEffect(() => {
     if (userId) {
-      checkAuthorization(userId)
-        .then(isAuthorized => {
-          if (!isAuthorized) {
-            setAuthError(true);
-            // Optionally, you could navigate to a login page instead of setting an error
-            // navigate("/login");
-          } else {
-            // If authorized, proceed to fetch user data
-            fetchUserData();
-          }
-        });
+      checkAuthorization(userId).then((isAuthorized) => {
+        if (!isAuthorized) {
+          setAuthError(true);
+          // Optionally, you could navigate to a login page instead of setting an error
+          // navigate("/login");
+        } else {
+          // If authorized, proceed to fetch user data
+          fetchUserData();
+        }
+      });
     }
   }, [userId, navigate]);
   const fetchUserData = () => {
     fetch(`/api/users/${userId}`)
-      .then(response => response.json())
-      .then(user => {
+      .then((response) => response.json())
+      .then((user) => {
         setFormData({
           username: user.username || "",
           email: user.email || "",
@@ -56,9 +58,10 @@ const UpdateProfile = () => {
           hobby: user.hobbies || "",
           sexualOrientation: user.sexual_orientation || "",
           floatsMyBoat: user.floats_my_boat || "",
+          sex: user.sex || "",
         });
       })
-      .catch(error => {
+      .catch((error) => {
         console.error("Error fetching user data:", error);
         setMessage("Failed to load user data");
         setType("error");
@@ -92,7 +95,7 @@ const UpdateProfile = () => {
     // Use a brief timeout to ensure the reset happens before setting the new message
 
     console.log("formData", formData);
-    const validationErrors = validateUser(formData,true);
+    const validationErrors = validateUser(formData, true);
     console.log("validationErrors", validationErrors);
     if (Object.keys(validationErrors).length === 0) {
       // No validation errors, proceed with form submission
@@ -114,12 +117,14 @@ const UpdateProfile = () => {
     } else {
       // Set the first validation error message
       const firstErrorKey = Object.keys(validationErrors)[0];
-      console.log("setMessage validationErrors[firstErrorKey]",validationErrors[firstErrorKey])
-      setTimeout(()=>{
+      console.log(
+        "setMessage validationErrors[firstErrorKey]",
+        validationErrors[firstErrorKey]
+      );
+      setTimeout(() => {
         setMessage(validationErrors[firstErrorKey]);
         setType("error");
-      },0)
-      
+      }, 0);
     }
   };
   if (authError) {
@@ -136,7 +141,9 @@ const UpdateProfile = () => {
       </Button>
 
       <h2>Update Profile</h2>
-      <ViewImage userId={userId} />
+      <div className="button-group">
+        <ViewImage userId={userId} />
+      </div>
       <form onSubmit={handleSubmit}>
         <div className="system-form">
           <div>
@@ -174,6 +181,21 @@ const UpdateProfile = () => {
               value={formData.password}
               onChange={handleInputChange}
             />
+          </div>
+          <div>
+            <label htmlFor="sex">Sex</label>
+            <select
+              id="sex"
+              name="sex"
+              value={formData.sex}
+              onChange={handleInputChange}
+              required
+            >
+              <option value="">Select your sex</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
           <div>
             <label htmlFor="hobby">Favourite Hobby</label>

@@ -208,7 +208,9 @@ app.get("/api/authorised/:userId", async (req, res) => {
   const userId = req.params.userId;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     // If not, respond with 401 Unauthorized and a message
-    return res.status(401).json({ error: "Unauthorized: Missing or invalid Authorization header" });
+    return res
+      .status(401)
+      .json({ error: "Unauthorized: Missing or invalid Authorization header" });
   }
   if (authHeader && authHeader.startsWith("Bearer ")) {
     // Extract the token from the Authorization header
@@ -219,11 +221,14 @@ app.get("/api/authorised/:userId", async (req, res) => {
 
   try {
     // Query the users table for the user with the given userId
-    const queryResult = await pool.query('SELECT token FROM users WHERE id = $1', [userId]);
-    
+    const queryResult = await pool.query(
+      "SELECT token FROM users WHERE id = $1",
+      [userId]
+    );
+
     if (queryResult.rows.length > 0) {
       const userToken = queryResult.rows[0].token;
-      
+
       // Check if the token from the database matches the token provided in the request
       tokenMatches = userToken === token;
       //console.log("Token matches:", tokenMatches);
@@ -232,7 +237,7 @@ app.get("/api/authorised/:userId", async (req, res) => {
     console.error("Database error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
-  
+
   res.json(tokenMatches);
 });
 // Login route
@@ -277,8 +282,43 @@ app.post("/api/login", async (req, res) => {
     res.status(500).send({ message: "An error occurred." });
   }
 });
+function determinePartnerPreference(orientation, gender) {
+  // Rule 1: Return 'Female' for 'Other'
+  if (gender === "Other") {
+    return "Female";
+  }
 
+  // Handling sexual orientations
+  switch (orientation) {
+    case "Heterosexual":
+    case "Straight":
+      // Opposite gender preference
+      return gender === "Male" ? "Female" : "Male";
+    case "Homosexual":
+    case "Gay":
+      // Same gender preference
+      return gender === "Male" ? "Male" : "Female";
+    case "Bisexual":
+    case "Pansexual":
+    case "Polysexual":
+    case "Omnisexual":
+    case "Queer":
+      // Rule 2: Return 'Female' if the orientation indicates no specific preference
+      return "Female";
+    case "Asexual":
+    case "Demisexual":
+      // Rule 2: Applies as no sexual preference is indicated
+      return "Female";
+    case "Lesbian":
+      // Lesbian orientation explicitly indicates a preference for females
+      return "Female";
+    default:
+      // For any unhandled or unknown orientations, or if no preference is indicated
+      return "Female";
+  }
+}
 app.post("/api/register", async (req, res) => {
+  const client = await pool.connect();
   try {
     const {
       username,
@@ -287,27 +327,84 @@ app.post("/api/register", async (req, res) => {
       hobby,
       sexualOrientation,
       floatsMyBoat,
+      sex,
     } = req.body;
 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    const result = await pool.query(
-      "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-      [username, email, hashedPassword, hobby, sexualOrientation, floatsMyBoat]
+    const hashedPasswordForAdmin = await bcrypt.hash(
+      "admin" + password,
+      saltRounds
     );
 
-    res.json(result.rows[0]);
+    await client.query("BEGIN"); // Start transaction
+
+    // Insert the new User
+    const userInsertResult = await client.query(
+      "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat, sex) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+      [
+        username,
+        email,
+        hashedPassword,
+        hobby,
+        sexualOrientation,
+        floatsMyBoat,
+        sex,
+      ]
+    );
+    const newUsersValue = userInsertResult.rows[0];
+    const newUserId = newUsersValue.id;
+    const usersAdminSex = determinePartnerPreference(sexualOrientation, sex);
+    const usersAdminProfilePicture =
+      usersAdminSex === "Female"
+        ? "backend\\imageUploaded\\file-WOMAN.png"
+        : "backend\\imageUploaded\\file-MAN.png";
+
+    // Insert user's dedicated admin
+    const adminInsertResult = await client.query(
+      "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat, sex, profile_picture) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+      [
+        "Admin for " + username,
+        username + "@system.com",
+        hashedPasswordForAdmin,
+        hobby,
+        sexualOrientation,
+        floatsMyBoat,
+        usersAdminSex,
+        usersAdminProfilePicture,
+      ]
+    );
+    const newAdminId = adminInsertResult.rows[0].id;
+
+    // Insert the connection record
+    await client.query(
+      "INSERT INTO connections (user_one_id, user_two_id) VALUES ($1, $2)",
+      [newUserId, newAdminId]
+    );
+
+    await client.query("COMMIT"); // Commit the transaction
+
+    res.json(newUsersValue);
   } catch (error) {
+    await client.query("ROLLBACK"); // Roll back the transaction on error
     console.error(error);
-    handleDatabaseError(error, res);
+    res.status(500).send("An error occurred during registration.");
+  } finally {
+    client.release(); // Release the client back to the pool
   }
 });
 
 app.put("/api/update_profile/:id", async (req, res) => {
   const { id } = req.params;
-  let { username, email, password, hobby, sexualOrientation, floatsMyBoat } =
-    req.body;
+  let {
+    username,
+    email,
+    password,
+    hobby,
+    sexualOrientation,
+    floatsMyBoat,
+    sex,
+  } = req.body;
 
   // Validation for password length if it's not empty
   if (password && password.trim().length < 8) {
@@ -327,24 +424,26 @@ app.put("/api/update_profile/:id", async (req, res) => {
   floatsMyBoat = floatsMyBoat === "" ? "Other (Not Listed)" : floatsMyBoat;
 
   const updateQuery = `
-    UPDATE users SET
-    username = COALESCE($1, username),
-    email = COALESCE($2, email),
-    password = COALESCE($3, password),
-    hobbies = COALESCE($4, hobbies),
-    sexual_orientation = COALESCE($5, sexual_orientation),
-    floats_my_boat = COALESCE($6, floats_my_boat)
-    WHERE id = $7
-    RETURNING *;
-  `;
+  UPDATE users SET
+  username = COALESCE($1, username),
+  email = COALESCE($2, email),
+  password = COALESCE($3, password),
+  hobbies = COALESCE($4, hobbies),
+  sexual_orientation = COALESCE($5, sexual_orientation),
+  floats_my_boat = COALESCE($6, floats_my_boat),
+  sex = COALESCE($7, sex)
+  WHERE id = $8
+  RETURNING *;
+`;
 
   const values = [
     username,
     email,
-    hashedPassword,
+    hashedPassword ? hashedPassword : null,
     hobby,
     sexualOrientation,
     floatsMyBoat,
+    sex, // Add the 'sex' to the values array
     id,
   ];
 
@@ -361,15 +460,134 @@ app.put("/api/update_profile/:id", async (req, res) => {
   }
 });
 
-app.get("/api/users", async (req, res) => {
+app.post("/api/filter-users/:userId", async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat FROM users");
+    const { userId } = req.params;
+    const { username, sexualOrientation, hobbies, floatsMyBoat, sex } = req.body;
+
+    // Initialize the query parts
+    let queryConditions = [];
+    let queryParams = [];
+    let paramCounter = 1;
+
+    // Dynamically build query conditions and parameters
+    if (username) {
+      queryConditions.push(`username ILIKE '%' || $${paramCounter++} || '%'`);
+      queryParams.push(username);
+    }
+    if (sexualOrientation) {
+      queryConditions.push(`sexual_orientation = $${paramCounter++}`);
+      queryParams.push(sexualOrientation);
+    }
+    if (hobbies) {
+      queryConditions.push(`hobbies = $${paramCounter++}`);
+      queryParams.push(hobbies);
+    }
+    if (floatsMyBoat) {
+      queryConditions.push(`floats_my_boat = $${paramCounter++}`);
+      queryParams.push(floatsMyBoat);
+    }
+    if (sex) {
+      queryConditions.push(`sex = $${paramCounter++}`);
+      queryParams.push(sex);
+    }
+
+    let query = `
+      SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex 
+      FROM users 
+      WHERE ${queryConditions.length > 0 ? queryConditions.join(' AND ') : '1=1'}
+    `;
+
+    // Fetch filtered users based on criteria
+    const filteredUsers = await pool.query(query, queryParams);
+
+    // Populate connection_requests for each filtered user
+    if (filteredUsers.rows.length > 0) {
+      const insertQuery = `
+        INSERT INTO connection_requests (requester_id, requested_id, status)
+        SELECT $1, id, 'pending' 
+        FROM unnest($2::int[]) AS id
+        WHERE id != $1
+      `;
+      await pool.query(insertQuery, [userId, filteredUsers.rows.map(user => user.id)]);
+    }
+
+    res.json({ success: true, message: "Connection requests sent.", filteredUsers: filteredUsers.rows });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "An error occurred.", error: error.message });
+  }
+});
+app.get("/api/connection-requests/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // SQL query to join connection_requests and users tables
+    const query = `
+      SELECT cr.id, cr.requester_id, cr.requested_id, cr.status, cr.created_at, cr.updated_at,
+             u.username, u.email, u.profile_picture, u.sexual_orientation, u.hobbies, u.floats_my_boat, u.sex
+      FROM connection_requests cr
+      JOIN users u ON cr.requested_id = u.id
+      WHERE cr.requester_id = $1
+    `;
+
+    const { rows } = await pool.query(query, [userId]);
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Error fetching connection requests:", error);
+    res.status(500).send({ message: "An error occurred while fetching connection requests." });
+  }
+});
+
+app.get("/api/connected/:userId", async (req, res) => {
+  try {
+    // Extract the userId from the request's path parameters
+    const { userId } = req.params;
+
+    // Updated query to include both the current user and their associated users
+    const query = `
+      -- Select the current user
+      (SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex 
+       FROM users 
+       WHERE id = $1)
+
+      UNION
+
+      -- Select associated users
+      (SELECT U2.id, U2.username, U2.email, U2.sexual_orientation, U2.hobbies, U2.floats_my_boat, U2.sex 
+       FROM users U1
+       JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id
+       JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id
+       WHERE U1.id = $1 AND U2.id != $1
+       ORDER BY username);
+
+    `;
+
+    // Execute the query with the userId as a parameter
+    const result = await pool.query(query, [userId]);
+
+    // Send the result back to the client
     res.json(result.rows);
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: "An error occurred." });
   }
 });
+
+
+app.get("/api/users", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex FROM users"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "An error occurred." });
+  }
+});
+
 async function findUserById(userId) {
   try {
     const query = `SELECT profile_picture FROM users WHERE id = $1`;
@@ -425,22 +643,21 @@ app.post(
       const filePath = req.file.path;
       const thumbnailPath = path.join(
         path.dirname(filePath),
-        'thumb-' + path.basename(filePath)
+        "thumb-" + path.basename(filePath)
       );
-      
+
       // Retrieve the original image dimensions
       const metadata = await sharp(filePath).metadata();
-      console.log("filePath",filePath)
-      console.log("thumbnailPath",thumbnailPath)
-      const longerDimension = metadata.width > metadata.height ? 'width' : 'height';
+      console.log("filePath", filePath);
+      console.log("thumbnailPath", thumbnailPath);
+      const longerDimension =
+        metadata.width > metadata.height ? "width" : "height";
       const resizeOptions = {
         [longerDimension]: 100, // Set the longer dimension to 100 pixels
       };
 
       // Generate thumbnail while maintaining aspect ratio
-      await sharp(filePath)
-        .resize(resizeOptions)
-        .toFile(thumbnailPath);
+      await sharp(filePath).resize(resizeOptions).toFile(thumbnailPath);
 
       // First, retrieve the current profile picture path for the user, if it exists
       const { rows: existingUser } = await pool.query(
@@ -888,8 +1105,8 @@ app.get("/api/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      "SELECT id, username, email, profile_picture, sexual_orientation, hobbies, floats_my_boat FROM users WHERE id = $1",
-      [id]
+      "SELECT id, username, email, profile_picture, sexual_orientation, hobbies, floats_my_boat, sex FROM users WHERE id = $1",
+      [id] // Make sure to select the new 'sex' column here
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -1024,12 +1241,10 @@ app.post("/api/password_reset_request", async (req, res) => {
         // If there's an error sending the email, consider whether you should also roll back the token update
         return res.status(500).json({ message: "Error sending email" });
       }
-      res
-        .status(200)
-        .json({
-          success: true,
-          message: "Reset password link has been sent to your email.",
-        });
+      res.status(200).json({
+        success: true,
+        message: "Reset password link has been sent to your email.",
+      });
     });
   } catch (error) {
     console.error(error);

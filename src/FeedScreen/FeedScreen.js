@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import PhotoUploadAndEdit from "../PhotoUploadAndEdit/PhotoUploadAndEdit";
 import TextUpdate from "../TextEntry/TextUpdate";
@@ -27,6 +27,8 @@ const FeedScreen = () => {
   const [authError, setAuthError] = useState(false);
   const [userProfilePic, setUserProfilePic] = useState(""); // Initialize as empty string
   const [hoveredDeletePostId, setHoveredDeletePostId] = useState(null);
+  const [searchActive, setSearchActive] = useState(false);
+  const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
   const userId = location.state ? location.state.userId : null;
@@ -36,7 +38,7 @@ const FeedScreen = () => {
     navigate("/userlist", { state: { userId: userId } }); // Update for v6
   };
   const [summary, setSummary] = useState("");
-
+  const [searchQuery, setSearchQuery] = useState("");
   // Toggle modal visibility
   // Function to fetch summary
   const fetchSummary = (fullText) => {
@@ -58,7 +60,19 @@ const FeedScreen = () => {
         setIsSummaryLoading(false); // Stop loading if there's an error
       });
   };
-
+  const handleSearchChange = (event) => {
+    setSearchQuery(event.target.value);
+  };
+  
+  const toggleSearch = () => {
+    setSearchActive((prev) => !prev);
+    // Focus on the input field when it becomes visible (after state update)
+    if (!searchActive) {
+      setTimeout(() => {
+        searchInputRef.current.focus();
+      }, 0);
+    }
+  };
   // Call this function whenever you need to update the summary
   // For example, you can call it right after fetchPosts() inside useEffect
   const deletePost = async (postId) => {
@@ -139,6 +153,11 @@ const FeedScreen = () => {
     setShowTextUpdate(false);
     fetchPosts(); // Refresh the posts
   };
+  const filteredPosts = searchQuery.length >= 3
+  ? posts.filter(post => 
+      post.content && post.content.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  : posts;
 
   useEffect(() => {
     if (userId) {
@@ -189,15 +208,25 @@ const FeedScreen = () => {
             <div className="interaction-icon"></div>
             <div className="interaction-icon current"></div>
           </div>
+          <div className="search-container">
+            
           <Button
-            variant="outline-info"
-            className="btn-search"
-            onClick={() => {
-              /* Your onClick function */
-            }}
+            variant="outline-info" // This should match other buttons
+            className="btn-icon" // Make sure it has the same classes
+            onClick={toggleSearch}
           >
             <Search size={25} />
           </Button>
+          {searchActive && (
+            <input
+              ref={searchInputRef}
+              type="text"
+              className="search-input"
+              placeholder="Type your search"
+              onChange={handleSearchChange}
+            />
+          )}
+          </div>
         </div>
         <h2 className="header-title font-style-4">{title}</h2>
       </div>
@@ -266,7 +295,7 @@ const FeedScreen = () => {
         </>
       )}
       {/* List of combined posts *New**/}
-      {posts.map((post) => (
+      {filteredPosts.map((post) => (
         <div key={post.id} className="element-group-box">
           <img
             src={`${process.env.REACT_APP_IMAGE_HOST}/${
@@ -275,21 +304,23 @@ const FeedScreen = () => {
             alt="User Post"
             className="post-profile-image"
           />
+
           {post.type === "text" ? (
-            <div>
+            <div className="speech-bubble">
               <div>{post.content}</div>
             </div>
           ) : (
-            <div>
- 
- <img
-  className={userId === post.posting_user_id ? "resizable-image" : ""}
-  src={`${process.env.REACT_APP_IMAGE_HOST}${post.uploaded_path}`}
-  alt="User Post"
-/>
+            <div className="post-image-container">
+              <img
+                className={
+                  userId === post.posting_user_id ? "resizable-image" : ""
+                }
+                src={`${process.env.REACT_APP_IMAGE_HOST}${post.uploaded_path}`}
+                alt="User Post"
+              />
             </div>
           )}
-          
+
           {userId === post.posting_user_id && (
             <div>
               {post.type === "text" ? (
@@ -328,7 +359,7 @@ const FeedScreen = () => {
               </Button>
             </div>
           )}
-          {userId !== post.posting_user_id && (<span></span>)}
+          {userId !== post.posting_user_id && <span>X</span>}
         </div>
       ))}
       <h2>Summary</h2>

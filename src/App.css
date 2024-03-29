@@ -1,6 +1,6 @@
 /* General App Styles */
 
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto:wght@400;700&family=Lato:wght@400;700&display=swap&family=Barrio:wght@400;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Roboto:wght@400;700&family=Lato:wght@400;700&display=swap&family=Barrio:wght@400;700&display=swap");
 .App {
   text-align: center;
   font-family: "Quicksand", sans-serif; /* Consistent with your header font */
@@ -264,7 +264,6 @@ input {
   flex-grow: 2; /* Allows the title to take up more space */
 }
 
-
 .interaction-username,
 .interaction-edit {
   flex-basis: 20%; /* Adjust the percentage based on your needs */
@@ -281,15 +280,6 @@ input {
   .interaction-edit {
     flex-basis: auto; /* Adjusts basis to content size on smaller screens */
   }
-}
-
-.btn-sm {
-  padding: 5px 10px;
-  font-size: 0.8em;
-}
-
-.btn-sm:hover {
-  background-color: #0056b3;
 }
 
 /* Since the checkbox and button are not likely to grow, they don't need flex-grow */
@@ -388,7 +378,6 @@ input {
   /* Remove any specific margin-top if you want to let the container flow naturally within the document */
 }
 
-
 .user-edit-item {
   display: flex;
   justify-content: space-between; /* Distributes space between items */
@@ -409,10 +398,6 @@ input {
 .username {
   flex-grow: 1; /* Allows the username to grow and fill available space */
   text-align: left; /* Aligns the username text to the left */
-}
-
-.btn-sm.interaction-edit {
-  margin-top: 5px; /* Space above the edit button */
 }
 
 .interaction-item {
@@ -439,7 +424,8 @@ input {
   justify-content: flex-end; /* Right align the edit button */
   margin-top: 10px; /* Space from the date */
 }
-.interaction-date, .interaction-expected-end {
+.interaction-date,
+.interaction-expected-end {
   color: #000; /* Default text color for creation date */
   margin-bottom: 5px; /* Space between dates and edit button */
 }
@@ -452,25 +438,20 @@ input {
   padding: 20px; /* Some padding */
   margin-bottom: 20px; /* Space below the container */
   border: 1px solid #ccc; /* Light grey border */
-  box-shadow: 0px 0px 10px rgba(0,0,0,0.1); /* Subtle shadow */
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow */
 }
-
 .element-group-box {
   display: flex;
-  align-items: flex-end; 
+  align-items: center;
   justify-content: space-between;
   background-color: white;
-
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   padding: 10px;
   margin-bottom: 10px;
 }
-
-
-
 .post-profile-image {
-  margin-right: 10px; /* Add some space between image and text */
+  border-radius: 50%; /* Add some space between image and text */
 }
 
 .post-content {
@@ -478,6 +459,7 @@ input {
   flex-direction: column;
   flex-grow: 1;
 }
+
 .post-actions {
   display: flex;
   align-items: center;
@@ -489,7 +471,8 @@ input {
   gap: 10px;
 }
 /* Ensure images don't exceed the container's width */
-.post-image, .post-profile-image {
+.post-image,
+.post-profile-image {
   max-width: 100px; /* Or any other appropriate max-width */
   height: auto;
   border-radius: 50%; /* Circular images for profile pictures */
@@ -510,7 +493,6 @@ input {
   display: flex;
   align-items: center;
 }
-
 
 .backdrop {
   position: fixed;
@@ -589,6 +571,17 @@ input {
   justify-content: space-between;
   width: 100%;
 }
+.search-container {
+  display: flex;
+  align-items: center;
+}
+.search-input {
+  display: none;
+  margin-left: 10px;
+}
+.search-container .search-input {
+  display: block;
+}
 .interaction-icons {
   display: flex;
   justify-content: center;
@@ -605,20 +598,13 @@ input {
 }
 .interaction-icon.current {
   width: 15px;
-  height: 15px; 
-}
-
-.btn-icon {
-  margin: 0 5px; /* Add space between buttons */
-  cursor: pointer;
-  border: none;
-  background-color: transparent;
+  height: 15px;
 }
 
 .header-title {
   font-size: 24px; /* Adjust size as needed */
   color: #333; /* Text color */
-  text-shadow: 1px 1px 1px rgba(0,0,0,0.1); /* Subtle shadow for depth */
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
   /* The font-family will be set dynamically */
 }
 .text-entry {
@@ -637,10 +623,26 @@ input {
   margin-bottom: 10px;
   border: 1px solid #ccc;
   border-radius: 15px;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
   resize: none; /* Optional: Disables the resize handle */
 }
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.8em;
+}
 
+.btn-sm:hover {
+  background-color: #0056b3;
+}
+.btn-sm.interaction-edit {
+  margin-top: 5px; /* Space above the edit button */
+}
+.btn-icon {
+  margin: 0 5px; /* Add space between buttons */
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+}
 .text-entry .btn-sm {
   background-color: #007bff;
   border-color: #007bff;
@@ -652,17 +654,125 @@ input {
   align-self: center; /* Align button to center for stack */
 }
 
-.text-entry .btn-sm:hover, .text-entry .btn-sm:focus {
+.text-entry .btn-sm:hover,
+.text-entry .btn-sm:focus {
   background-color: #0056b3;
   border-color: #0056b3;
 }
 
+.speech-bubble {
+  position: relative;
+  background-color: #f9f9f9;
+  border-radius: 15px;
+  padding: 10px;
+  margin-left: 20px; /* Adjust as necessary */
+  flex-grow: 1; /* Allows the bubble to fill the space */
+  max-width: calc(100% - 60px); /* Max width of the speech bubble */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
 
+.speech-bubble::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -10px; /* Adjust as necessary */
+  width: 0;
+  height: 0;
+  border: 10px solid transparent;
+  border-right-color: #f9f9f9; /* Match bubble background color */
+  border-left: 0;
+  margin-top: -10px; /* Adjust this value to half the border-width to align it properly */
+  transform: translate(0, -50%);
+}
+/*FilterUsers*/
+.filter-users {
+  padding: 20px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.filter-input,
+.filter-select {
+  margin-bottom: 10px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.filter-button {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+/*Connection Requests*/
+/* Container for the entire component */
+.connection-requests-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Styles for the unordered list */
+.connection-requests-list {
+  list-style-type: none; /* Removes default bullets */
+  padding: 0;
+  margin: 0;
+}
+
+/* Styles for each list item */
+.connection-request-item {
+  padding: 15px;
+  margin-bottom: 10px;
+  background-color: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.connection-request-item:last-child {
+  margin-bottom: 0; /* Removes margin from the last item */
+}
+
+/* Additional styling for text and profile viewer */
+.connection-request-text {
+  margin-bottom: 10px;
+  border-radius: 8px;
+  display: flex;
+  gap: 20px;
+}
+.left-side-listed-profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* Adds a little space between the spans */
+}
+.thumb-profile-viewer {
+  display: block; /* Adjust as needed based on ThumbProfileViewer styling */
+  margin-top: 10px;
+}
 
 /* Dynamic font class added via JS based on user selection */
-.font-style-1 { font-family: 'Roboto', sans-serif; }
-.font-style-2 { font-family: 'Lato', sans-serif; }
-.font-style-3 { font-family: 'Montserrat', sans-serif; }
-.font-style-4 { font-family: 'Barrio', sans-serif; }
-
-
+.font-style-1 {
+  font-family: "Roboto", sans-serif;
+}
+.font-style-2 {
+  font-family: "Lato", sans-serif;
+}
+.font-style-3 {
+  font-family: "Montserrat", sans-serif;
+}
+.font-style-4 {
+  font-family: "Barrio", sans-serif;
+}

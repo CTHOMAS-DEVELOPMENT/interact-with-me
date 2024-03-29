@@ -10,9 +10,10 @@ const ViewImage = ({ userId }) => {
     const fetchProfilePicture = async () => {
       try {
         const response = await fetch(`/api/users/${userId}/profile-picture`);
-        //console.log("response", response);
+        
         if (!response.ok) throw new Error("Failed to fetch profile picture");
         const data = await response.json();
+        console.log("response-data.profilePicture", data.profilePicture);
         setProfilePicture(data.profilePicture);
       } catch (error) {
         console.error("Error fetching profile picture:", error);

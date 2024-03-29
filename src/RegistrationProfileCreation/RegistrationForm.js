@@ -22,19 +22,17 @@ const RegistrationForm = () => {
     hobby: "",
     sexualOrientation: "",
     floatsMyBoat: "",
+    sex: "",
   });
 
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
   const [userId, setUserId] = useState(null);
   const handleLoginScreenClick = () => {
-    if(userId)
-    {
+    if (userId) {
       navigate("/", { state: { username: formData.username } });
-    }
-    else{
+    } else {
       navigate("/"); // Update for v6
     }
-    
   };
   const handleInputChange = (event) => {
     const { name, value } = event.target;
@@ -90,6 +88,7 @@ const RegistrationForm = () => {
             setUserId(data.id);
             setMessage("Registration successful");
             setType("success");
+            window.scrollTo(0, 0);
           } else if (data.message) {
             setMessage(data.message);
             setType("error");
@@ -123,10 +122,13 @@ const RegistrationForm = () => {
                 ? `Login ${formData.username}`
                 : `Login ${formData.username} without profile image`}
             </Button>
+
           </div>
 
           {!uploadedImageUrl && (
-            <ImageUploader userId={userId} onUpload={handleImageUpload} />
+            <div className="profile-image-buttons">
+              <ImageUploader userId={userId} onUpload={handleImageUpload} />
+            </div>
           )}
 
           {uploadedImageUrl && (
@@ -177,6 +179,21 @@ const RegistrationForm = () => {
             onBlur={handleBlur}
             required
           />
+        </div>
+        <div>
+          <label htmlFor="sex">Sex</label>
+          <select
+            id="sex"
+            name="sex"
+            value={formData.sex}
+            onChange={handleInputChange}
+            required
+          >
+            <option value="">Select your sex</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
         </div>
         <div>
           <label htmlFor="hobby">Favourite Hobby</label>
