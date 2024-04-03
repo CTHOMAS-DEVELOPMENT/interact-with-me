@@ -539,8 +539,103 @@ app.get("/api/connection-requests/:userId", async (req, res) => {
     res.status(500).send({ message: "An error occurred while fetching connection requests." });
   }
 });
+app.get("/api/connection-requested/:userId", async (req, res) => {
+  const { userId } = req.params; // Extract userId from the request URL
 
-app.get("/api/connected/:userId", async (req, res) => {
+  // SQL query to fetch details of connection requests aimed at the specified user
+  const query = `
+    SELECT 
+      cr.id AS request_id, 
+      cr.requester_id, 
+      cr.requested_id, 
+      cr.status, 
+      cr.created_at, 
+      cr.updated_at,
+      u.id, 
+      u.username, 
+      u.profile_picture, 
+      u.sexual_orientation, 
+      u.hobbies, 
+      u.floats_my_boat, 
+      u.sex
+    FROM 
+      connection_requests AS cr
+    JOIN 
+      users AS u ON cr.requester_id = u.id
+    WHERE 
+      cr.requested_id = $1;
+  `;
+
+  try {
+    // Execute the query with the userId provided in the URL
+    const { rows } = await pool.query(query, [userId]);
+
+    // Send the result back to the client
+    res.json(rows);
+  } catch (error) {
+    console.error("Error fetching connection requests:", error);
+    res.status(500).send("An error occurred while fetching connection requests.");
+  }
+});
+app.post("/api/enable-selected-connections/:loggedInUserId", async (req, res) => {
+  const { loggedInUserId } = req.params; // The ID of the user making the connection approvals
+  const { selectedUserIds } = req.body; // Array of IDs that the logged-in user wishes to connect with
+
+  try {
+      await pool.query('BEGIN'); // Start a transaction
+
+      for (const requestedId of selectedUserIds) {
+          // Ensure user IDs are integers to prevent SQL injection
+          const requesterIdInt = parseInt(requestedId, 10);
+          const requestedIdInt = parseInt(loggedInUserId, 10);
+
+          // Delete the corresponding request from `connection_requests`
+          await pool.query(
+              `DELETE FROM connection_requests WHERE requester_id = $1 AND requested_id = $2`,
+              [requesterIdInt, requestedIdInt]
+              
+          );
+
+          // Insert the new connection into `connections`
+          // Assuming `user_one_id` should always be the lower ID to maintain consistency
+          const [userOneId, userTwoId] = requesterIdInt < requestedIdInt ? [requesterIdInt, requestedIdInt] : [requestedIdInt, requesterIdInt];
+
+          await pool.query(
+              `INSERT INTO connections (user_one_id, user_two_id) VALUES ($1, $2)`,
+              [userOneId, userTwoId]
+          );
+      }
+
+      await pool.query('COMMIT'); // Commit the transaction
+      res.json({ success: true, message: "Connections successfully enabled." });
+  } catch (error) {
+      await pool.query('ROLLBACK'); // Rollback the transaction in case of an error
+      console.error("Error enabling connections:", error);
+      res.status(500).send({ success: false, message: "An error occurred while enabling connections." });
+  }
+});
+app.post("/api/delete-from-connection-requests/:id", async (req, res) => {
+  const { id } = req.params; // Extracting the id from the request parameters
+
+  try {
+    // Perform the delete operation
+    const deleteQuery = 'DELETE FROM connection_requests WHERE id = $1 RETURNING *;'; // RETURNING * is optional and returns the deleted row
+    const result = await pool.query(deleteQuery, [id]);
+
+    if (result.rowCount === 0) {
+      // If no row was deleted, send a 404 response
+      res.status(404).send({ success: false, message: "Connection request not found." });
+    } else {
+      // On successful deletion, return the deleted record or a success message
+      res.json({ success: true, message: "Connection request successfully deleted.", deletedRecord: result.rows[0] });
+    }
+  } catch (error) {
+    console.error("Error deleting connection request:", error);
+    res.status(500).send({ success: false, message: "An error occurred while deleting the connection request." });
+  }
+});
+
+app.get("/api/connectedX/:userId", async (req, res) => {
   try {
     // Extract the userId from the request's path parameters
     const { userId } = req.params;
@@ -574,8 +669,124 @@ app.get("/api/connected/:userId", async (req, res) => {
     res.status(500).send({ message: "An error occurred." });
   }
 });
+app.get("/api/connected/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const query = `
+      (SELECT 
+        null as connection_id, -- Placeholder for the current user
+        id, 
+        username, 
+        email, 
+        sexual_orientation, 
+        hobbies, 
+        floats_my_boat, 
+        sex 
+      FROM 
+        users 
+      WHERE 
+        id = $1)
 
+      UNION
 
+      (SELECT 
+        connections.id as connection_id, -- Include connection ID for associated users
+        U2.id, 
+        U2.username, 
+        U2.email, 
+        U2.sexual_orientation, 
+        U2.hobbies, 
+        U2.floats_my_boat, 
+        U2.sex 
+      FROM 
+        users U1
+        JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id
+        JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id
+      WHERE 
+        U1.id = $1 AND U2.id != $1
+      ORDER BY 
+        username);
+    `;
+
+    const result = await pool.query(query, [userId]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "An error occurred." });
+  }
+});
+app.delete("/api/delete-requests-from-me/:userId", async (req, res) => {
+  const { userId } = req.params; // Extract userId from the request URL
+
+  try {
+    // Delete all connection requests where the requester_id matches the userId provided
+    const result = await pool.query(
+      "DELETE FROM connection_requests WHERE requester_id = $1",
+      [userId]
+    );
+
+    // Check if rows were deleted
+    if (result.rowCount > 0) {
+      res.json({ success: true, message: `Deleted ${result.rowCount} connection request(s) from user ${userId}.` });
+    } else {
+      res.status(404).json({ success: false, message: "No connection requests found to delete for this user." });
+    }
+  } catch (error) {
+    console.error("Error deleting connection requests from user:", error);
+    res.status(500).send({ success: false, message: "An error occurred while deleting connection requests." });
+  }
+});
+
+app.delete("/api/delete-requests-to-me/:userId", async (req, res) => {
+  const { userId } = req.params; // Extract userId from the request URL parameters
+
+  try {
+      // Prepare and execute the DELETE query
+      const query = `DELETE FROM connection_requests WHERE requested_id = $1`;
+      const result = await pool.query(query, [userId]);
+
+      // Check if rows were deleted
+      if (result.rowCount > 0) {
+          res.json({ success: true, message: "Connection requests successfully deleted." });
+      } else {
+          res.json({ success: false, message: "No connection requests found for the user." });
+      }
+  } catch (error) {
+      console.error("Error deleting connection requests:", error);
+      res.status(500).send({ success: false, message: "An error occurred while deleting connection requests." });
+  }
+});
+
+app.delete("/api/delete-connection/:id", async (req, res) => {
+  const { id } = req.params; // Extract the ID from the URL parameter
+
+  try {
+    // Start a transaction
+    await pool.query('BEGIN');
+
+    // SQL query to delete the record from connections table
+    const query = 'DELETE FROM connections WHERE id = $1';
+    
+    // Execute the query
+    const result = await pool.query(query, [id]);
+
+    // If the query didn't affect any row, the ID was not found
+    if (result.rowCount === 0) {
+      await pool.query('ROLLBACK'); // Rollback the transaction
+      return res.status(404).json({ message: "Connection not found." });
+    }
+
+    // Commit the transaction
+    await pool.query('COMMIT');
+
+    // Send back a success response
+    res.status(200).json({ message: "Connection successfully deleted." });
+  } catch (error) {
+    await pool.query('ROLLBACK'); // Rollback the transaction in case of an error
+    console.error("Error deleting connection:", error);
+    res.status(500).send("An error occurred while deleting the connection.");
+  }
+});
 app.get("/api/users", async (req, res) => {
   try {
     const result = await pool.query(

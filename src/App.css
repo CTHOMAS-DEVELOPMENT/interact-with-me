@@ -30,7 +30,11 @@
   border-radius: 8px; /* Rounded corners for the form */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
 }
-
+.system-small-button-wrapper {
+  border-radius: 8px;
+  border: 1px solid #0dcaf0;
+  padding: 5px;
+}
 .system-form h2 {
   margin-bottom: 20px; /* Space below the header */
   color: #333; /* Dark text for the header */
@@ -343,9 +347,7 @@ input {
   margin-left: 10px; /* Space between username and checkbox */
 }
 
-.view-profile-btn {
-  width: 100%; /* Full width for the button to align with the wrapper */
-}
+
 
 /*User Profile*/
 .back-button {
@@ -630,7 +632,10 @@ input {
   padding: 5px 10px;
   font-size: 0.8em;
 }
-
+.custom-btn {
+  width: auto; /* Adjust based on your needs, auto makes the button wrap its content */
+  padding: 0.25rem 0.5rem; /* Adjust padding to suit your design */
+}
 .btn-sm:hover {
   background-color: #0056b3;
 }
@@ -762,7 +767,19 @@ input {
   display: block; /* Adjust as needed based on ThumbProfileViewer styling */
   margin-top: 10px;
 }
-
+.connection-requests-toggle-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Adjust the gap between buttons as needed */
+  margin-bottom: 20px; /* Adds some space below the buttons */
+}
+.button_tower {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Adjusts the space between buttons */
+  align-items: center; /* Aligns buttons to the start of the flex container */
+  margin-bottom: 20px; /* Adds some space below the button tower */
+}
 /* Dynamic font class added via JS based on user selection */
 .font-style-1 {
   font-family: "Roboto", sans-serif;

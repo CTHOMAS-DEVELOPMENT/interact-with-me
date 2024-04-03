@@ -15,7 +15,11 @@ const FilterUsers = ({ applyFilter }) => {
   const hobbyOptions = process.env.REACT_APP_HOBBY_TYPE.split(",");
   const sexualOrientationOptions = process.env.REACT_APP_SEXUAL_ORIENTATION_TYPE.split(",");
   const floatsMyBoatOptions = process.env.REACT_APP_FLOATS_MY_BOAT_TYPE.split("|");
-
+  const showButton = filters.username.length > 3 ||
+                      filters.sexualOrientation !== '' ||
+                      filters.hobbies !== '' ||
+                      filters.floatsMyBoat !== '' ||
+                      filters.sex !== '';
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFilters((prevFilters) => ({
@@ -64,10 +68,13 @@ const FilterUsers = ({ applyFilter }) => {
         <option value="Female">Female</option>
         <option value="Other">Other</option>
       </select>
-      <Button
+
+        {showButton && (
+        <Button
           variant="outline-info"
           onClick={() => applyFilter(filters)}>Apply Filters
         </Button>
+      )}
     </div>
   );
 
