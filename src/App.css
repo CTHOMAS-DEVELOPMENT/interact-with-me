@@ -31,10 +31,14 @@
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
 }
 .system-small-button-wrapper {
+  width: auto; /* Adjust based on content size */
+  height: auto; /* Adjust based on content size */
+  display: inline-flex; /* Use inline-flex to wrap content */
   border-radius: 8px;
   border: 1px solid #0dcaf0;
   padding: 5px;
 }
+
 .system-form h2 {
   margin-bottom: 20px; /* Space below the header */
   color: #333; /* Dark text for the header */

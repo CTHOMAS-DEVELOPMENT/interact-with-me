@@ -13,7 +13,6 @@ const ViewImage = ({ userId }) => {
         
         if (!response.ok) throw new Error("Failed to fetch profile picture");
         const data = await response.json();
-        console.log("response-data.profilePicture", data.profilePicture);
         setProfilePicture(data.profilePicture);
       } catch (error) {
         console.error("Error fetching profile picture:", error);
@@ -25,7 +24,6 @@ const ViewImage = ({ userId }) => {
   const handleProfilePictureUpdate = () => {
     // Navigate to profile picture update page or open a modal for updating the profile picture
     // This is a placeholder action and should be replaced with actual logic
-    //console.log("Update profile picture button clicked");
     setShowUploader(true); // Show the uploader
   };
   const handleCloseUploader = () => {
@@ -40,7 +38,6 @@ const ViewImage = ({ userId }) => {
   useEffect(() => {
     // This effect will run when `profilePicture` changes.
     // It's mainly for debugging to see if `profilePicture` is properly updated.
-    //console.log("(2)useEffect-newProfilePicture", profilePicture);
   }, [profilePicture]);
   return (
     <div className="profile-picture-container">

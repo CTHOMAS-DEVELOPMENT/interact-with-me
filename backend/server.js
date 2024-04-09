@@ -1,28 +1,45 @@
 const express = require("express");
-const { Pool } = require("pg");
+const { Pool, Client } = require("pg");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 const jwt = require("jsonwebtoken");
-
+const http = require("http");
+const socketIo = require("socket.io");
+const cors = require("cors"); // Assuming you're using the 'cors' package for Express
+const JSZip = require("jszip");
+const util = require("util");
 const HOST = "localhost";
 const PORTFOREMAIL = "3000";
 const PORTNO = 5432;
 // Create a new express application
 const app = express();
+const server = http.createServer(app);
+app.use(
+  cors({
+    origin: "http://localhost:3000", // Allow your frontend origin
+  })
+);
+const io = socketIo(server, {
+  cors: {
+    origin: "http://localhost:3000", // Allow your frontend origin
+    methods: ["GET", "POST"], // Specify which HTTP methods are allowed
+    allowedHeaders: ["my-custom-header"], // Optional: specify headers
+    credentials: true, // Optional: if you need credentials
+  },
+});
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 //const { OpenAI } = require('openai');
 const { HfInference } = require("@huggingface/inference");
+
 function loadEnvVariables() {
   // Adjust if your .env file is located elsewhere. Using __dirname ensures it looks in the same directory as your server.js file.
   const envPath = path.join(__dirname, ".env");
-  console.log(`Loading .env from: ${envPath}`); // Log the path to verify it's correct
 
   try {
     const data = fs.readFileSync(envPath, "utf-8");
-    console.log(`Raw .env data: ${data}`); // Log raw .env data for verification
 
     // Split the data on new line, compatible with both UNIX and Windows environments
     const envVariables = data.split(/\r?\n/);
@@ -56,9 +73,6 @@ const inference = new HfInference(HF_TOKEN);
       model: "t5-base",
       inputs: "My name is Wolfgang and I live in Amsterdam",
     });
-
-    // Log the response to the console
-    console.log(response);
   } catch (error) {
     console.error("Error during model inference:", error);
   }
@@ -91,6 +105,20 @@ const pool = new Pool({
   password: "interactwithmeadmin",
   port: PORTNO, // Default PostgreSQL port
 });
+// const pool = new Pool({
+//   user: "interactwithme_admin",
+//   host: HOST, // Adjust if your DB is hosted elsewhere
+//   database: "interactwithmetest",
+//   password: "your_secure_password",
+//   port: PORTNO, // Default PostgreSQL port
+// });
+// const pool = new Pool({
+//   user: "interactwithmeadmin",
+//   host: HOST, // Adjust if your DB is hosted elsewhere
+//   database: "interactwithme",
+//   password: "interactwithmeadmin",
+//   port: PORTNO, // Default PostgreSQL port
+// });
 function handleDatabaseError(error, res) {
   // Duplicate username
   if (error.code === "23505" && error.constraint === "users_username_key") {
@@ -110,6 +138,56 @@ pool.connect((err, client, release) => {
   console.log("Connected to PostgreSQL Database");
   release();
 });
+
+const connectionString = `postgresql://interactwithmeadmin:interactwithmeadmin@${HOST}:${PORTNO}/interactwithme`;
+
+const pgClient = new Client({ connectionString });
+pgClient.connect();
+
+pgClient.query("LISTEN new_post");
+
+// Track clients and their interest in specific submission_ids
+const clientSubmissions = {}; // { socketId: { userId: Number, submissionIds: Set(Number) } }
+
+io.on("connection", (socket) => {
+  // Expect the client to emit this event right after connecting
+  socket.on("register", ({ userId, submissionIds }) => {
+    clientSubmissions[socket.id] = {
+      userId,
+      submissionIds: new Set(submissionIds),
+    };
+
+    socket.on("disconnect", () => {
+      delete clientSubmissions[socket.id];
+    });
+  });
+});
+
+pgClient.on("notification", async (msg) => {
+  let newPost = JSON.parse(msg.payload); // Assuming newPost is a mutable object here
+
+  // Query the database for users interested in this submission
+  const query = `SELECT participating_user_id FROM submission_members WHERE submission_id = $1`;
+  const res = await pgClient.query(query, [newPost.submission_id]);
+
+  const interestedUserIds = res.rows.map((row) => row.participating_user_id);
+
+  // Add interestedUserIds to the newPost object
+  newPost = { ...newPost, interestedUserIds }; // Use spread syntax to create a new object
+
+  // Emit to clients interested in this submission_id
+  Object.entries(clientSubmissions).forEach(
+    ([socketId, { userId, submissionIds }]) => {
+      if (
+        interestedUserIds.includes(userId) &&
+        submissionIds.has(newPost.submission_id)
+      ) {
+        io.to(socketId).emit("post update", newPost); // Emit to a specific client, now including interestedUserIds
+      }
+    }
+  );
+});
+
 // Set up storage location and file naming
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -154,10 +232,6 @@ app.post("/api/generate-text", async (req, res) => {
 
     // Use the function to clean the generated text by removing the prompt
     const cleanedText = removePromptFromGeneratedText(prompt, generatedText);
-
-    // Log for debugging
-    // console.log("prompt", prompt);
-    // console.log("cleanedGeneratedText", cleanedText);
 
     // Send the cleaned text back to the frontend
     res.json({ generatedText: cleanedText });
@@ -215,8 +289,6 @@ app.get("/api/authorised/:userId", async (req, res) => {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     // Extract the token from the Authorization header
     token = authHeader.substring(7, authHeader.length);
-    //console.log("Token from the front:", token);
-    //console.log("userId from the front:", userId);
   }
 
   try {
@@ -231,7 +303,6 @@ app.get("/api/authorised/:userId", async (req, res) => {
 
       // Check if the token from the database matches the token provided in the request
       tokenMatches = userToken === token;
-      //console.log("Token matches:", tokenMatches);
     }
   } catch (err) {
     console.error("Database error:", err);
@@ -463,7 +534,8 @@ app.put("/api/update_profile/:id", async (req, res) => {
 app.post("/api/filter-users/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { username, sexualOrientation, hobbies, floatsMyBoat, sex } = req.body;
+    const { username, sexualOrientation, hobbies, floatsMyBoat, sex } =
+      req.body;
 
     // Initialize the query parts
     let queryConditions = [];
@@ -495,7 +567,9 @@ app.post("/api/filter-users/:userId", async (req, res) => {
     let query = `
       SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex 
       FROM users 
-      WHERE ${queryConditions.length > 0 ? queryConditions.join(' AND ') : '1=1'}
+      WHERE ${
+        queryConditions.length > 0 ? queryConditions.join(" AND ") : "1=1"
+      }
     `;
 
     // Fetch filtered users based on criteria
@@ -509,13 +583,22 @@ app.post("/api/filter-users/:userId", async (req, res) => {
         FROM unnest($2::int[]) AS id
         WHERE id != $1
       `;
-      await pool.query(insertQuery, [userId, filteredUsers.rows.map(user => user.id)]);
+      await pool.query(insertQuery, [
+        userId,
+        filteredUsers.rows.map((user) => user.id),
+      ]);
     }
 
-    res.json({ success: true, message: "Connection requests sent.", filteredUsers: filteredUsers.rows });
+    res.json({
+      success: true,
+      message: "Connection requests sent.",
+      filteredUsers: filteredUsers.rows,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).send({ message: "An error occurred.", error: error.message });
+    res
+      .status(500)
+      .send({ message: "An error occurred.", error: error.message });
   }
 });
 app.get("/api/connection-requests/:userId", async (req, res) => {
@@ -536,7 +619,9 @@ app.get("/api/connection-requests/:userId", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Error fetching connection requests:", error);
-    res.status(500).send({ message: "An error occurred while fetching connection requests." });
+    res.status(500).send({
+      message: "An error occurred while fetching connection requests.",
+    });
   }
 });
 app.get("/api/connection-requested/:userId", async (req, res) => {
@@ -574,64 +659,84 @@ app.get("/api/connection-requested/:userId", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Error fetching connection requests:", error);
-    res.status(500).send("An error occurred while fetching connection requests.");
+    res
+      .status(500)
+      .send("An error occurred while fetching connection requests.");
   }
 });
-app.post("/api/enable-selected-connections/:loggedInUserId", async (req, res) => {
-  const { loggedInUserId } = req.params; // The ID of the user making the connection approvals
-  const { selectedUserIds } = req.body; // Array of IDs that the logged-in user wishes to connect with
+app.post(
+  "/api/enable-selected-connections/:loggedInUserId",
+  async (req, res) => {
+    const { loggedInUserId } = req.params; // The ID of the user making the connection approvals
+    const { selectedUserIds } = req.body; // Array of IDs that the logged-in user wishes to connect with
 
-  try {
-      await pool.query('BEGIN'); // Start a transaction
+    try {
+      await pool.query("BEGIN"); // Start a transaction
 
       for (const requestedId of selectedUserIds) {
-          // Ensure user IDs are integers to prevent SQL injection
-          const requesterIdInt = parseInt(requestedId, 10);
-          const requestedIdInt = parseInt(loggedInUserId, 10);
+        // Ensure user IDs are integers to prevent SQL injection
+        const requesterIdInt = parseInt(requestedId, 10);
+        const requestedIdInt = parseInt(loggedInUserId, 10);
 
-          // Delete the corresponding request from `connection_requests`
-          await pool.query(
-              `DELETE FROM connection_requests WHERE requester_id = $1 AND requested_id = $2`,
-              [requesterIdInt, requestedIdInt]
-              
-          );
+        // Delete the corresponding request from `connection_requests`
+        await pool.query(
+          `DELETE FROM connection_requests WHERE requester_id = $1 AND requested_id = $2`,
+          [requesterIdInt, requestedIdInt]
+        );
 
-          // Insert the new connection into `connections`
-          // Assuming `user_one_id` should always be the lower ID to maintain consistency
-          const [userOneId, userTwoId] = requesterIdInt < requestedIdInt ? [requesterIdInt, requestedIdInt] : [requestedIdInt, requesterIdInt];
+        // Insert the new connection into `connections`
+        // Assuming `user_one_id` should always be the lower ID to maintain consistency
+        const [userOneId, userTwoId] =
+          requesterIdInt < requestedIdInt
+            ? [requesterIdInt, requestedIdInt]
+            : [requestedIdInt, requesterIdInt];
 
-          await pool.query(
-              `INSERT INTO connections (user_one_id, user_two_id) VALUES ($1, $2)`,
-              [userOneId, userTwoId]
-          );
+        await pool.query(
+          `INSERT INTO connections (user_one_id, user_two_id) VALUES ($1, $2)`,
+          [userOneId, userTwoId]
+        );
       }
 
-      await pool.query('COMMIT'); // Commit the transaction
+      await pool.query("COMMIT"); // Commit the transaction
       res.json({ success: true, message: "Connections successfully enabled." });
-  } catch (error) {
-      await pool.query('ROLLBACK'); // Rollback the transaction in case of an error
+    } catch (error) {
+      await pool.query("ROLLBACK"); // Rollback the transaction in case of an error
       console.error("Error enabling connections:", error);
-      res.status(500).send({ success: false, message: "An error occurred while enabling connections." });
+      res.status(500).send({
+        success: false,
+        message: "An error occurred while enabling connections.",
+      });
+    }
   }
-});
+);
 app.post("/api/delete-from-connection-requests/:id", async (req, res) => {
   const { id } = req.params; // Extracting the id from the request parameters
 
   try {
     // Perform the delete operation
-    const deleteQuery = 'DELETE FROM connection_requests WHERE id = $1 RETURNING *;'; // RETURNING * is optional and returns the deleted row
+    const deleteQuery =
+      "DELETE FROM connection_requests WHERE id = $1 RETURNING *;"; // RETURNING * is optional and returns the deleted row
     const result = await pool.query(deleteQuery, [id]);
 
     if (result.rowCount === 0) {
       // If no row was deleted, send a 404 response
-      res.status(404).send({ success: false, message: "Connection request not found." });
+      res
+        .status(404)
+        .send({ success: false, message: "Connection request not found." });
     } else {
       // On successful deletion, return the deleted record or a success message
-      res.json({ success: true, message: "Connection request successfully deleted.", deletedRecord: result.rows[0] });
+      res.json({
+        success: true,
+        message: "Connection request successfully deleted.",
+        deletedRecord: result.rows[0],
+      });
     }
   } catch (error) {
     console.error("Error deleting connection request:", error);
-    res.status(500).send({ success: false, message: "An error occurred while deleting the connection request." });
+    res.status(500).send({
+      success: false,
+      message: "An error occurred while deleting the connection request.",
+    });
   }
 });
 
@@ -727,13 +832,22 @@ app.delete("/api/delete-requests-from-me/:userId", async (req, res) => {
 
     // Check if rows were deleted
     if (result.rowCount > 0) {
-      res.json({ success: true, message: `Deleted ${result.rowCount} connection request(s) from user ${userId}.` });
+      res.json({
+        success: true,
+        message: `Deleted ${result.rowCount} connection request(s) from user ${userId}.`,
+      });
     } else {
-      res.status(404).json({ success: false, message: "No connection requests found to delete for this user." });
+      res.status(404).json({
+        success: false,
+        message: "No connection requests found to delete for this user.",
+      });
     }
   } catch (error) {
     console.error("Error deleting connection requests from user:", error);
-    res.status(500).send({ success: false, message: "An error occurred while deleting connection requests." });
+    res.status(500).send({
+      success: false,
+      message: "An error occurred while deleting connection requests.",
+    });
   }
 });
 
@@ -741,19 +855,28 @@ app.delete("/api/delete-requests-to-me/:userId", async (req, res) => {
   const { userId } = req.params; // Extract userId from the request URL parameters
 
   try {
-      // Prepare and execute the DELETE query
-      const query = `DELETE FROM connection_requests WHERE requested_id = $1`;
-      const result = await pool.query(query, [userId]);
+    // Prepare and execute the DELETE query
+    const query = `DELETE FROM connection_requests WHERE requested_id = $1`;
+    const result = await pool.query(query, [userId]);
 
-      // Check if rows were deleted
-      if (result.rowCount > 0) {
-          res.json({ success: true, message: "Connection requests successfully deleted." });
-      } else {
-          res.json({ success: false, message: "No connection requests found for the user." });
-      }
+    // Check if rows were deleted
+    if (result.rowCount > 0) {
+      res.json({
+        success: true,
+        message: "Connection requests successfully deleted.",
+      });
+    } else {
+      res.json({
+        success: false,
+        message: "No connection requests found for the user.",
+      });
+    }
   } catch (error) {
-      console.error("Error deleting connection requests:", error);
-      res.status(500).send({ success: false, message: "An error occurred while deleting connection requests." });
+    console.error("Error deleting connection requests:", error);
+    res.status(500).send({
+      success: false,
+      message: "An error occurred while deleting connection requests.",
+    });
   }
 });
 
@@ -762,27 +885,27 @@ app.delete("/api/delete-connection/:id", async (req, res) => {
 
   try {
     // Start a transaction
-    await pool.query('BEGIN');
+    await pool.query("BEGIN");
 
     // SQL query to delete the record from connections table
-    const query = 'DELETE FROM connections WHERE id = $1';
-    
+    const query = "DELETE FROM connections WHERE id = $1";
+
     // Execute the query
     const result = await pool.query(query, [id]);
 
     // If the query didn't affect any row, the ID was not found
     if (result.rowCount === 0) {
-      await pool.query('ROLLBACK'); // Rollback the transaction
+      await pool.query("ROLLBACK"); // Rollback the transaction
       return res.status(404).json({ message: "Connection not found." });
     }
 
     // Commit the transaction
-    await pool.query('COMMIT');
+    await pool.query("COMMIT");
 
     // Send back a success response
     res.status(200).json({ message: "Connection successfully deleted." });
   } catch (error) {
-    await pool.query('ROLLBACK'); // Rollback the transaction in case of an error
+    await pool.query("ROLLBACK"); // Rollback the transaction in case of an error
     console.error("Error deleting connection:", error);
     res.status(500).send("An error occurred while deleting the connection.");
   }
@@ -859,8 +982,6 @@ app.post(
 
       // Retrieve the original image dimensions
       const metadata = await sharp(filePath).metadata();
-      console.log("filePath", filePath);
-      console.log("thumbnailPath", thumbnailPath);
       const longerDimension =
         metadata.width > metadata.height ? "width" : "height";
       const resizeOptions = {
@@ -1140,6 +1261,212 @@ app.post("/api/update-the-group", async (req, res) => {
       .send({ message: "An error occurred while updating the group." });
   }
 });
+app.get("/api/closed-interaction-zip/:submissionId", async (req, res) => {
+  const submissionId = req.params.submissionId;
+  const title = req.query.title || "interaction"; // Get title from query parameter, fallback to 'interaction'
+
+  try {
+    // Fetch posts for the given submissionId
+    const query = `
+      SELECT
+        sd.id,
+        sd.submission_id,
+        sd.posting_user_id,
+        sd.text_content AS content,
+        sd.uploaded_path,
+        sd.created_at,
+        u.username,
+        u.profile_picture,
+        CASE
+          WHEN sd.uploaded_path IS NULL THEN 'text'
+          ELSE 'media'
+        END AS type
+      FROM
+        submission_dialog sd
+      JOIN
+        users u ON sd.posting_user_id = u.id
+      WHERE
+        sd.submission_id = $1
+      ORDER BY
+        sd.created_at DESC;
+    `;
+    const result = await pool.query(query, [submissionId]);
+    const posts = result.rows;
+
+    const zip = new JSZip();
+    // Title for the ZIP based on the title query parameter or default to 'interaction.zip'
+    const zipTitle = `${title.replace(/\s+/g, "_")}.zip`;
+
+    // Add JSON file to the ZIP
+    zip.file(
+      `${zipTitle.replace(".zip", ".json")}`,
+      JSON.stringify(posts, null, 2)
+    );
+
+    // Loop through posts to add any media files to the ZIP
+    for (const post of posts.filter((post) => post.uploaded_path)) {
+      // Sanitize and resolve the full path for the uploaded file
+      const sanitizedPath = post.uploaded_path.replace("uploaded-images\\", "");
+      const fullPath = path.join(__dirname, "imageUploaded", sanitizedPath);
+
+      // Ensure the file exists before attempting to add it to the ZIP
+      if (fs.existsSync(fullPath)) {
+        zip.file(path.basename(fullPath), fs.readFileSync(fullPath));
+      } else {
+        console.log(`File not found: ${fullPath}`);
+      }
+    }
+    zip
+      .generateNodeStream({ type: "nodebuffer", streamFiles: true })
+      .pipe(res)
+      .on("finish", function () {
+        res.status(200).end();
+      });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server error occurred while creating ZIP.");
+  }
+});
+app.post(
+  "/api/build-interaction-from-files",
+  upload.single("zipFile"),
+  async (req, res) => {
+    // Ensure a file was uploaded and the userId is present
+    if (!req.file || !req.body.userId) {
+      return res.status(400).json({
+        error: "No ZIP file was uploaded, or userId is missing.",
+      });
+    }
+
+    const zipFile = req.file.path;
+    const userId = req.body.userId;
+
+    try {
+      const data = fs.readFileSync(zipFile);
+      const zip = await JSZip.loadAsync(data);
+      const zipFiles = Object.keys(zip.files);
+
+      let jsonFileCount = 0;
+      let isValid = true;
+      let imageFileCount = 0;
+      let interactionData;
+      const mediaFiles = [];
+      zipFiles.forEach((filename) => {
+        if (filename.endsWith(".json")) {
+          jsonFileCount++;
+        } else if (filename.match(/\.(jpg|jpeg|png)$/i)) {
+          imageFileCount++;
+        } else {
+          isValid = false;
+        }
+      });
+
+      if (jsonFileCount !== 1) {
+        isValid = false; // There must be exactly one JSON file
+      }
+
+      if (!isValid) {
+        return res.status(400).json({
+          error:
+            "ZIP archive contents are invalid. It should contain exactly one JSON file and any number of image files.",
+        });
+      }
+
+      // Process valid ZIP contents here
+      // Extract JSON and media files from the ZIP
+      for (const [filename, fileData] of Object.entries(zip.files)) {
+        if (filename.endsWith(".json")) {
+          const content = await fileData.async("string");
+          interactionData = JSON.parse(content);
+        } else {
+          // Prepare for saving media files later
+          const mediaData = await fileData.async("nodebuffer");
+          mediaFiles.push({ filename, mediaData });
+        }
+      }
+      if (!interactionData) {
+        throw new Error("No JSON file found in the ZIP archive.");
+      }
+
+      // Derive the interaction title from the ZIP file name
+      const interactionTitle = req.file.originalname
+        .replace(/_/g, " ")
+        .replace(".zip", "");
+
+      // Insert the interaction title and userId into the database
+      const submissionResult = await pool.query(
+        "INSERT INTO user_submissions (user_id, title) VALUES ($1, $2) RETURNING id",
+        [userId, interactionTitle]
+      );
+      const submissionId = submissionResult.rows[0].id;
+
+      // Save media files to the server and update interactionData with new paths
+      for (const { filename, mediaData } of mediaFiles) {
+        const sanitizedFilename = filename.replace("uploaded-images\\", "");
+        const fullPath = path.join(
+          __dirname,
+          "imageUploaded",
+          sanitizedFilename
+        );
+        const relativePath = `/uploaded-images/${sanitizedFilename}`;
+        // Ensure the directory exists
+        await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
+
+        // Save the media file
+        await fs.promises.writeFile(fullPath, mediaData);
+
+        // Update interactionData entries with the new file path
+        interactionData = interactionData.map((entry) => {
+          if (entry.uploaded_path && entry.uploaded_path.includes(filename)) {
+            return { ...entry, uploaded_path: relativePath }; // Ensures the use of relativePath
+          }
+          return entry;
+        });
+      }
+
+      const uniqueUserIds = [
+        ...new Set(interactionData.map((entry) => entry.posting_user_id)),
+      ];
+      console.log("uniqueUserIds", uniqueUserIds);
+      // Insert unique posting_user_ids into submission_members
+      for (const postingUserId of uniqueUserIds) {
+        await pool.query(
+          "INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2)",
+          [submissionId, postingUserId]
+        );
+      }
+
+      // Insert interaction data into the database
+      for (const entry of interactionData) {
+        await pool.query(
+          "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content, uploaded_path, created_at) VALUES ($1, $2, $3, $4, $5)",
+          [
+            submissionId,
+            entry.posting_user_id,
+            entry.content,
+            entry.uploaded_path,
+            entry.created_at,
+          ]
+        );
+      }
+
+      //res.send({ message: 'Interaction rebuilt successfully', submissionId });
+
+      // Cleanup: Remove the uploaded ZIP file after processing
+      await util.promisify(fs.unlink)(zipFile);
+
+      // Return a JSON response indicating success
+      return res.json({
+        message: `Successfully processed ZIP file with ${jsonFileCount} JSON file and ${imageFileCount} image files.`,
+      });
+    } catch (error) {
+      console.error("Error processing ZIP file:", error);
+      return res.status(500).json({
+        error: "Error processing ZIP file.",
+      });
+    }
+  }
+);
 
 async function deleteExpiredInteractions() {
   await pool.query("BEGIN");
@@ -1377,7 +1704,6 @@ app.post("/api/users/:submissionId/text-entry", async (req, res) => {
 app.post("/api/user_submissions", async (req, res) => {
   try {
     const { user_id, title, userIds } = req.body;
-    console.log("user_id still there?", user_id);
     if (!user_id || !title || !userIds || !Array.isArray(userIds)) {
       return res
         .status(400)
@@ -1498,6 +1824,7 @@ app.post("/api/update_user_password", async (req, res) => {
 
 // Start the server
 const PORT = process.env.PORT || 3002;
-app.listen(PORT, () => {
+
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

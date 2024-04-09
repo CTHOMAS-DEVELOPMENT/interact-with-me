@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import JSZip from "jszip";
 import { useLocation, useNavigate } from "react-router-dom";
 import InteractionTitles from "../InteractionTitles/InteractionTitles";
 import ThumbProfileViewer from "./ThumbProfileViewer";
@@ -23,6 +24,7 @@ const UsersList = () => {
     useState(null);
   const [connectionRequests, setConnectionRequests] = useState(0);
   const [requestsFromOthers, setRequestsFromOthers] = useState(0);
+  const [refreshNeeded, setRefreshNeeded] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const loggedInUserId = location.state ? location.state.userId : null;
@@ -31,34 +33,26 @@ const UsersList = () => {
     setShowFilter(!showFilter);
   };
   const deleteContactToBeDeleted = (id) => {
-    console.log("Attempting to delete connection with ID:", id);
-  
     fetch(`/api/delete-connection/${id}`, {
-      method: 'DELETE', // Use the DELETE HTTP method
+      method: "DELETE", // Use the DELETE HTTP method
     })
-    .then(response => {
-      if (!response.ok) {
-        // If the server response is not OK, throw an error
-        throw new Error('Network response was not ok');
-      }
-      return response.json(); // Assuming the server responds with JSON
-    })
-    .then(data => {
-      console.log("Connection successfully deleted:", data);
-      fetchConnectedUsers(); // Refresh the list to reflect the deletion
-    })
-    .catch(error => {
-      console.error("Error deleting connection:", error);
-      // Optionally, update your UI to indicate the error to the user
-    });
+      .then((response) => {
+        if (!response.ok) {
+          // If the server response is not OK, throw an error
+          throw new Error("Network response was not ok");
+        }
+        return response.json(); // Assuming the server responds with JSON
+      })
+      .then((data) => {
+        console.log("Connection successfully deleted:", data);
+        fetchConnectedUsers(); // Refresh the list to reflect the deletion
+      })
+      .catch((error) => {
+        console.error("Error deleting connection:", error);
+        // Optionally, update your UI to indicate the error to the user
+      });
   };
   const applyFilter = (filterCriteria) => {
-    console.log(
-      "Applying filter with criteria:",
-      filterCriteria,
-      "for user:",
-      user.id
-    );
     if (!user.id) {
       console.error("No user ID provided for filtering.");
       return;
@@ -84,11 +78,7 @@ const UsersList = () => {
         // Handle the successful response here
         setIsSubmitting(false);
         setSubmitSuccess(true);
-        console.log("Filtered data:", data);
         setShowConnectionRequests(true);
-        // Assuming 'data' includes some information or users to display, update your state accordingly
-        // For example, if 'data' contains a list of filtered users, you might want to set them in your 'users' state
-        // setUsers(data.filteredUsers or however your response structure looks like);
       })
       .catch((error) => {
         setIsSubmitting(false);
@@ -103,6 +93,17 @@ const UsersList = () => {
   const handleToggleRequestsFromOthers = () => {
     setShowRequestsFromOthers(!showRequestsFromOthers);
   };
+  useEffect(() => {
+    if (refreshNeeded) {
+      // Perform your refresh actions here
+      fetchConnectedUsers(); // Example action: re-fetch connected users
+
+      // Optionally, reset other states or perform additional updates
+
+      setRefreshNeeded(false); // Reset the refresh trigger
+    }
+  }, [refreshNeeded]); // This effect depends on `refreshNeeded`
+
   useEffect(() => {
     setShowConnectionRequests(false);
     setShowRequestsFromOthers(false);
@@ -152,6 +153,84 @@ const UsersList = () => {
       },
     });
   };
+  const uploadZipFile = (file, userId) => {
+    const formData = new FormData();
+
+    formData.append("zipFile", file);
+    formData.append("userId", userId);
+
+    fetch("/api/build-interaction-from-files", {
+      method: "POST",
+      body: formData,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Server responded with an error!");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        console.log("Success:", data);
+        setRefreshNeeded(true);
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+      });
+  };
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (!file) {
+      console.log("No file selected.");
+      return;
+    }
+
+    // Check if file.type includes 'zip'
+    if (file.type.indexOf("zip") === -1) {
+      console.log("File is not a ZIP archive.");
+      // Clear the file input
+      event.target.value = null;
+      return;
+    }
+
+    // Use JSZip to read the ZIP file
+    JSZip.loadAsync(file)
+      .then((zip) => {
+        // Validate the contents of the ZIP file
+        let isValid = true;
+        let jsonFileCount = 0;
+
+        Object.keys(zip.files).forEach((filename) => {
+          if (filename.endsWith(".json")) {
+            jsonFileCount += 1;
+          } else if (!filename.match(/\.(jpg|jpeg|png)$/i)) {
+            // If the file is not JSON or an image, mark as invalid
+            isValid = false;
+          }
+        });
+
+        if (jsonFileCount !== 1) {
+          isValid = false; // There must be exactly one JSON file
+        }
+
+        if (!isValid) {
+          console.log("ZIP archive contents are invalid.");
+          // Clear the file input for future uploads
+          event.target.value = null;
+          return;
+        }
+
+        console.log("ZIP archive is valid.");
+        // Proceed to process the ZIP file (e.g., extract and display contents)
+        uploadZipFile(file, loggedInUserId);
+        // After processing the file, clear the input to allow for new uploads
+        event.target.value = null;
+      })
+      .catch((err) => {
+        console.error("Error reading ZIP file:", err);
+        // Clear the file input in case of an error as well
+        event.target.value = null;
+      });
+  };
 
   const handleUpdateProfileClick = (loggedInUserId) => {
     navigate("/profile", { state: { userId: loggedInUserId } });
@@ -165,8 +244,6 @@ const UsersList = () => {
     });
   };
   const enableSelectedConnections = (selectedUserIds) => {
-    console.log("Enabling connections for user IDs:", selectedUserIds);
-    console.log("Enabling connections for user IDs for ", loggedInUserId);
     setShowRequestsFromOthers(false);
 
     // Prepare the data to be sent in the request body
@@ -205,7 +282,6 @@ const UsersList = () => {
         .then((data) => {
           const loggedInUser = data.find((user) => user.id === loggedInUserId);
           const dbUserlist = data.filter((user) => user.id !== loggedInUserId);
-          console.log("fetchConnectedUsers-data",data)
           setUser(loggedInUser);
           setUsers(dbUserlist);
         })
@@ -213,11 +289,9 @@ const UsersList = () => {
     }
   };
   const showConnectRequests = (count) => {
-    console.log("ConnectRequests*", count);
     setConnectionRequests(count);
   };
   const showRequestsOfOthers = (count) => {
-    console.log("RequestsFromOthers*", count);
     setRequestsFromOthers(count);
   };
 
@@ -261,14 +335,15 @@ const UsersList = () => {
           {users.map((user) => (
             <li key={user.id} className="user-item">
               <div className="user-info-container">
-              <span className="user-name">{user.username}</span>
-              <span className="user-name">{user.connection_id}</span>
+                <span className="user-name">{user.username}</span>
                 <div className="system-small-button-wrapper">
                   <Button
                     variant="danger"
                     className="btn-sm"
                     onClick={() => deleteContactToBeDeleted(user.connection_id)}
-                    onMouseEnter={() => setHoveredContactToBeDeleted(user.connection_id)}
+                    onMouseEnter={() =>
+                      setHoveredContactToBeDeleted(user.connection_id)
+                    }
                     onMouseLeave={() => setHoveredContactToBeDeleted(null)}
                   >
                     {hoveredContactToBeDeleted === user.connection_id ? (
@@ -313,14 +388,15 @@ const UsersList = () => {
           </Button>
         )}
       </div>
-      <Button
+
+      <div className="button_tower">
+        <Button
           variant="outline-info"
           className="btn-sm"
           onClick={toggleFilter}
         >
           Update Your Connection Requests
         </Button>
-      <div className="button_tower">
         <Button
           variant="outline-info"
           className="btn-sm"
@@ -354,6 +430,21 @@ const UsersList = () => {
         )}
       </div>
       <h2>Interactions</h2>
+      <div>
+        <input
+          type="file"
+          id="fileInput"
+          style={{ display: "none" }} // Hide the file input, will be triggered by a button
+          onChange={handleFileSelect}
+          accept=".zip"
+        />
+        <Button
+          variant="outline-info"
+          onClick={() => document.getElementById("fileInput").click()}
+        >
+          Load Previously Saved Interaction
+        </Button>
+      </div>
       <InteractionTitles loggedInUserId={loggedInUserId} />
     </div>
   );

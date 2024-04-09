@@ -9,7 +9,6 @@ const ProfileViewer = ({ userId }) => {
         
         if (!response.ok) throw new Error("Failed to fetch profile picture");
         const data = await response.json();
-        console.log("PF-data.profilePicture", data.profilePicture);
         setProfilePicture(data.profilePicture);
       } catch (error) {
         console.error("Error fetching profile picture:", error);
@@ -23,7 +22,6 @@ const ProfileViewer = ({ userId }) => {
   useEffect(() => {
     // This effect will run when `profilePicture` changes.
     // It's mainly for debugging to see if `profilePicture` is properly updated.
-    //console.log("(2)useEffect-newProfilePicture", profilePicture);
   }, [profilePicture]);
   return (
     <div className="profile-picture-container">

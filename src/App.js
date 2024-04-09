@@ -13,6 +13,7 @@ import PasswordReset from './PasswordReset/PasswordReset'; // Import the compone
 import UpdateProfile from "./UpdateProfile/UpdateProfile";
 import TextGenerator from "./OpenAI/TextGenerator";
 import SummaryGenerator from "./OpenAI/SummaryGenerator";
+import QAndA from "./OpenAI/TensorFlow"
 function App() {
   return (
     <Router>
@@ -37,6 +38,7 @@ function App() {
           <Route path="/" element={<LoginForm />} />
           <Route path="/textgenerator" element={<TextGenerator />} />
           <Route path="/summarygenerator" element={<SummaryGenerator />} />
+          <Route path="/qanda" element={<QAndA />} />
         </Routes>
       </div>
     </Router>

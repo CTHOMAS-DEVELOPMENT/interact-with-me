@@ -34,6 +34,8 @@ const InteractionTitles = ({ loggedInUserId }) => {
       },
     });
   };
+  // Function to upload the ZIP file
+
 
   const handleEditClick = (interaction, event) => {
     event.stopPropagation(); // Prevent triggering handleTitleClick
@@ -44,6 +46,42 @@ const InteractionTitles = ({ loggedInUserId }) => {
       },
     });
   };
+  const handleDownloadAndEndItClick = (interaction, event) => {
+    event.preventDefault(); // Prevent default button behavior
+
+    // API endpoint to call
+    const apiUrl = `/api/closed-interaction-zip/${
+      interaction.submission_id
+    }?title=${encodeURIComponent(interaction.title)}`;
+
+    // Fetch the ZIP file from the server
+    fetch(apiUrl)
+      .then((response) => {
+        if (response.ok) return response.blob();
+        throw new Error("Network response was not ok.");
+      })
+      .then((blob) => {
+        // Create a new URL for the blob
+        const url = window.URL.createObjectURL(blob);
+        // Create a new <a> element to trigger the download
+        const a = document.createElement("a");
+        a.href = url;
+        // Set the downloaded file name (you can customize it)
+        a.download = `${interaction.title.replace(/\s+/g, "_")}.zip`;
+        document.body.appendChild(a); // Append the <a> element to the document
+        a.click(); // Trigger the download
+        window.URL.revokeObjectURL(url); // Clean up the URL
+        a.remove(); // Remove the <a> element
+
+        // Optionally, end the interaction here or notify the user that the download is complete.
+        // You may want to call another API to "end" the interaction, or update your application state accordingly.
+      })
+      .catch((error) => {
+        console.error("Error downloading interaction ZIP:", error);
+        // Handle any errors that occurred during the fetch operation
+      });
+  };
+
   const handleEndItClick = (interaction, event) => {
     event.stopPropagation(); // Prevent triggering handleTitleClick
 
@@ -105,7 +143,10 @@ const InteractionTitles = ({ loggedInUserId }) => {
                   className="interaction-expected-end"
                   title={interaction.expected_end}
                 >
-                  Expected end: {endedInteractions.includes(interaction.submission_id) ? "Ended" : interaction.expected_end}
+                  Expected end:{" "}
+                  {endedInteractions.includes(interaction.submission_id)
+                    ? "Ended"
+                    : interaction.expected_end}
                 </span>
               </div>
               <div className="interaction-edit-container">
@@ -117,8 +158,19 @@ const InteractionTitles = ({ loggedInUserId }) => {
                       className="btn-sm interaction-edit"
                       onClick={(event) => handleEditClick(interaction, event)}
                     >
-                      Edit
+                      Invited
                     </Button>
+
+                    <Button
+                      variant="outline-info"
+                      className="btn-sm interaction-edit"
+                      onClick={(event) =>
+                        handleDownloadAndEndItClick(interaction, event)
+                      }
+                    >
+                      Download
+                    </Button>
+
                     <Button
                       variant="danger"
                       className="btn-sm interaction-edit"

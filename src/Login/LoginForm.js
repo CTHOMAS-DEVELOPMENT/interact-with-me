@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ReCAPTCHA from "react-google-recaptcha";
 import { useLocation, Link, useNavigate } from "react-router-dom"; // Import Link from react-router-dom
 import AlertMessage from "../system/AlertMessage";
 import unLoggedMan from "./unLoggedMan.png";
@@ -7,17 +8,24 @@ import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 const LoginForm = () => {
-
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info"); // Default to 'info' or any type you prefer
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   const location = useLocation(); // To access the passed state
-    // Initialize formData state with username from the navigation state if available
-    const [formData, setFormData] = useState({
-      username: location.state?.username || "", // Pre-populate username if it's passed in state
-      password: "",
-    });
+  // Initialize formData state with username from the navigation state if available
+  const [formData, setFormData] = useState({
+    username: location.state?.username || "", // Pre-populate username if it's passed in state
+    password: "",
+  });
+  const [captchaValue, setCaptchaValue] = useState(null);
+  const reCaptchaKey = "6Lc03a4pAAAAAJNt0mM_hutJ0XJL1079QVUREoNq"; // Replace YOUR_SITE_KEY_HERE with your actual site key
+
+  // Other component logic remains the same
+
+  const onCaptchaChange = (value) => {
+    setCaptchaValue(value); // You might want to send this value to your backend for verification
+  };
   const handleInputChange = (event) => {
     const { name, value } = event.target;
     setFormData({
@@ -43,6 +51,11 @@ const LoginForm = () => {
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (!captchaValue) {
+      setMessage("Please verify you are not a robot.");
+      setType("error");
+      return;
+    }
     if (validateForm()) {
       fetch("/api/login", {
         method: "POST",
@@ -59,8 +72,7 @@ const LoginForm = () => {
           if (data.success) {
             setMessage("Login successful");
             setType("success");
-            console.log("data.token",data.token)
-            localStorage.setItem('token', data.token);
+            localStorage.setItem("token", data.token);
             navigate("/userlist", { state: { userId: data.userId } }); // Update for v6
             //navigate('/feed', { state: { userId: data.userId } }); // Update for v6
           } else {
@@ -78,6 +90,7 @@ const LoginForm = () => {
 
   return (
     <div className="login-layout">
+      <ReCAPTCHA sitekey={reCaptchaKey} onChange={onCaptchaChange} />
       <div className="image-panel">
         <img src={unLoggedMan} alt="Man" />
       </div>
@@ -117,8 +130,8 @@ const LoginForm = () => {
               </p>
             </div>
             <div className="login-page-link">
-            <p>
-              <Link to="/password-reset-request">Forgotten password?</Link>
+              <p>
+                <Link to="/password-reset-request">Forgotten password?</Link>
               </p>
             </div>
           </form>

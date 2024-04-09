@@ -51,7 +51,6 @@ const PhotoUploadAndEdit = ({
     if (dialogId)
       apiEndpoint = `/api/submission-dialog/${dialogId}/update-item`;
 
-      console.log("apiEndpoint",apiEndpoint)
     fetch(apiEndpoint, {
       method: "POST",
       body: formData,

@@ -29,7 +29,6 @@ const ConnectionRequested = ({
     });
   };
   const deleteAllRequests = () => {
-    console.log("userId", userId);
 
     // Call the API to delete all connection requests to the user
     fetch(`/api/delete-requests-to-me/${userId}`, {

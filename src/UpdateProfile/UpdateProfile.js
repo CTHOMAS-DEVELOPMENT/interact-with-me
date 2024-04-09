@@ -94,9 +94,7 @@ const UpdateProfile = () => {
 
     // Use a brief timeout to ensure the reset happens before setting the new message
 
-    console.log("formData", formData);
     const validationErrors = validateUser(formData, true);
-    console.log("validationErrors", validationErrors);
     if (Object.keys(validationErrors).length === 0) {
       // No validation errors, proceed with form submission
       fetch(`/api/update_profile/${userId}`, {
@@ -117,10 +115,7 @@ const UpdateProfile = () => {
     } else {
       // Set the first validation error message
       const firstErrorKey = Object.keys(validationErrors)[0];
-      console.log(
-        "setMessage validationErrors[firstErrorKey]",
-        validationErrors[firstErrorKey]
-      );
+
       setTimeout(() => {
         setMessage(validationErrors[firstErrorKey]);
         setType("error");

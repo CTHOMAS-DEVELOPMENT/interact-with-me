@@ -41,7 +41,6 @@ const UserProfile = () => {
     }
   }, [loggedInUserId, navigate]);
   useEffect(() => {
-    console.log("UP user",user)
     /**
      {
     "id": 59,

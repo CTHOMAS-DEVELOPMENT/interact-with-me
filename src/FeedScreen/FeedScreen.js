@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import io from 'socket.io-client';
 import PhotoUploadAndEdit from "../PhotoUploadAndEdit/PhotoUploadAndEdit";
 import TextUpdate from "../TextEntry/TextUpdate";
 import TextEntry from "../TextEntry/TextEntry";
@@ -28,6 +29,7 @@ const FeedScreen = () => {
   const [userProfilePic, setUserProfilePic] = useState(""); // Initialize as empty string
   const [hoveredDeletePostId, setHoveredDeletePostId] = useState(null);
   const [searchActive, setSearchActive] = useState(false);
+  const [userIsLive, setUserIsLive] = useState(false); // New state for tracking live updates for involved users
   const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -39,8 +41,7 @@ const FeedScreen = () => {
   };
   const [summary, setSummary] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  // Toggle modal visibility
-  // Function to fetch summary
+
   const fetchSummary = (fullText) => {
     setIsSummaryLoading(true); // Start loading
     fetch("/api/summarize-text", {
@@ -90,7 +91,38 @@ const FeedScreen = () => {
       console.error("Error deleting the post:", error);
     }
   };
+  useEffect(() => {
+    const socket = io(process.env.REACT_APP_BACKEND_HOST); 
 
+    socket.on('connect', () => {
+      socket.emit('register', { userId, submissionIds: [submissionId] });
+    });
+
+    socket.on('post update', (newPost) => {
+      const interestedUserIds = newPost.interestedUserIds;
+
+      // Check if userId is in interestedUserIds and update userIsLive accordingly
+      if (interestedUserIds.includes(parseInt(userId, 10))) {
+        setUserIsLive(true);
+      }
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('post update');
+      socket.disconnect();
+    };
+  }, [submissionId, userId]); // Depend on submissionId and userId to re-register on changes
+
+  useEffect(() => {
+    if (userIsLive) {
+      // Refresh dialog or posts when userIsLive is true
+      fetchPosts();
+      // Reset userIsLive after the update
+      setUserIsLive(false);
+    }
+  }, [userIsLive]); 
+  
   useEffect(() => {
     if (posts.length > 0) {
       // Combine all post content into one large block of text
@@ -109,7 +141,6 @@ const FeedScreen = () => {
         })
         .then((data) => {
           if (data.profilePicture) {
-            console.log("data.profilePicture", data.profilePicture);
             const thumbnailPath = getThumbnailPath(data.profilePicture);
             setUserProfilePic(thumbnailPath);
           }
@@ -124,7 +155,6 @@ const FeedScreen = () => {
       fetch(`/api/users/${submissionId}/posts`)
         .then((response) => response.json())
         .then((data) => {
-          console.log("data", data);
           return setPosts(data);
         })
         .catch((error) => console.error("Error fetching posts:", error));
@@ -138,13 +168,11 @@ const FeedScreen = () => {
     setShowUploader(false); // This will hide the modal
   };
   const setPostIdForText = (id, text) => {
-    console.log("DialogId For Text", id);
     setDialogId(id);
     setCurrentText(text);
     setShowTextUpdate(true);
   };
   const setPostId = (id) => {
-    console.log("DialogId", id);
     setDialogId(id);
     handleGetNewPicture();
   };

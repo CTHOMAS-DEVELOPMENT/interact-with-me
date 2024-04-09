@@ -9,8 +9,6 @@ const TextUpdate = ({ dialogId, initialText, onSaveSuccess }) => {
     // Focus the textarea and select the text after it has been auto-focused
     if (textAreaRef.current) {
       textAreaRef.current.focus();
-      console.log("focus");
-      //textAreaRef.current.select();
     }
     setTexty(initialText);
   }, [dialogId, initialText]);
