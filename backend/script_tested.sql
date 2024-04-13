@@ -95,3 +95,30 @@ ALTER TABLE submission_dialog ADD CONSTRAINT submission_dialog_submission_id_fke
 ALTER TABLE connection_requests ADD CONSTRAINT connection_requests_requested_id_fkey FOREIGN KEY (requested_id) REFERENCES users(id);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_connection_requests_status ON connection_requests(status);
+
+SELECT 
+  u.id, 
+  u.username, 
+  us.title, 
+  u.profile_picture 
+FROM 
+  submission_members sm, users u, user_submissions us 
+WHERE 
+  sm.participating_user_id = u.id AND 
+  sm.submission_id = us.id AND 
+  sm.submission_id = ? AND 
+  sm.participating_user_id != us.user_id;
+
+SELECT u.id, u.username, us.title, u.profile_picture FROM submission_members sm, users u, user_submissions us WHERE sm.participating_user_id = u.id AND sm.submission_id = us.id AND sm.submission_id = ? AND sm.participating_user_id != us.user_id;
+
+submission_id INTEGER REFERENCES user_submissions(id),
+    participating_user_id
+
+    SELECT participating_user_id FROM submission_members WHERE submission_id = 72;
+
+$1
+SELECT u.id, u.username, us.title, u.profile_picture 
+FROM submission_members sm 
+JOIN users u ON sm.participating_user_id = u.id 
+JOIN user_submissions us ON sm.submission_id = us.id 
+WHERE sm.submission_id = $1;

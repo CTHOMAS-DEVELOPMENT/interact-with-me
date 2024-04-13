@@ -148,20 +148,50 @@ pgClient.query("LISTEN new_post");
 
 // Track clients and their interest in specific submission_ids
 const clientSubmissions = {}; // { socketId: { userId: Number, submissionIds: Set(Number) } }
+const activeUsersPerSubmission = {};
+
 
 io.on("connection", (socket) => {
-  // Expect the client to emit this event right after connecting
-  socket.on("register", ({ userId, submissionIds }) => {
-    clientSubmissions[socket.id] = {
-      userId,
-      submissionIds: new Set(submissionIds),
-    };
+  socket.on("enter screen", ({ userId, submissionId }) => {
+    // Ensure this socket joins a room specific to the submissionId
+    socket.join(`submission-${submissionId}`);
 
-    socket.on("disconnect", () => {
-      delete clientSubmissions[socket.id];
-    });
+    if (!activeUsersPerSubmission[submissionId]) {
+      activeUsersPerSubmission[submissionId] = new Set();
+    }
+    activeUsersPerSubmission[submissionId].add(userId);
+    console.log(
+      "Entering: activeUsersPerSubmission[" + submissionId + "]",
+      activeUsersPerSubmission[submissionId]
+    );
+
+    // Emit only to sockets in the same submissionId room
+    io.to(`submission-${submissionId}`).emit(
+      "active users update",
+      Array.from(activeUsersPerSubmission[submissionId])
+    );
+  });
+
+  socket.on("leave screen", ({ userId, submissionId }) => {
+    if (activeUsersPerSubmission[submissionId]) {
+      activeUsersPerSubmission[submissionId].delete(userId);
+      console.log(
+        "Leaving: activeUsersPerSubmission[" + submissionId + "]",
+        activeUsersPerSubmission[submissionId]
+      );
+
+      // Emit only to sockets in the same submissionId room
+      io.to(`submission-${submissionId}`).emit(
+        "active users update",
+        Array.from(activeUsersPerSubmission[submissionId])
+      );
+    }
+
+    // Ensure this socket leaves the room
+    socket.leave(`submission-${submissionId}`);
   });
 });
+;
 
 pgClient.on("notification", async (msg) => {
   let newPost = JSON.parse(msg.payload); // Assuming newPost is a mutable object here
@@ -169,11 +199,17 @@ pgClient.on("notification", async (msg) => {
   // Query the database for users interested in this submission
   const query = `SELECT participating_user_id FROM submission_members WHERE submission_id = $1`;
   const res = await pgClient.query(query, [newPost.submission_id]);
-
   const interestedUserIds = res.rows.map((row) => row.participating_user_id);
 
-  // Add interestedUserIds to the newPost object
-  newPost = { ...newPost, interestedUserIds }; // Use spread syntax to create a new object
+  // Check if the posting user is currently active
+  let isActive = false;
+  Object.values(clientSubmissions).forEach(({ userId, activeUsers }) => {
+    if (activeUsers.has(newPost.posting_user_id)) {
+      isActive = true;
+    }
+  });
+  newPost = { ...newPost, interestedUserIds };
+  newPost.isActive = isActive;
 
   // Emit to clients interested in this submission_id
   Object.entries(clientSubmissions).forEach(
@@ -1613,19 +1649,38 @@ app.get("/api/interaction_user_list", async (req, res) => {
     }
 
     const query = `
-      SELECT 
-        u.id, 
-        u.username,
-        us.title
-      FROM 
-        submission_members sm
-      JOIN 
-        users u ON sm.participating_user_id = u.id
-      JOIN 
-        user_submissions us ON sm.submission_id = us.id
-      WHERE 
-        sm.submission_id = $1 AND
-        sm.participating_user_id != us.user_id;
+      SELECT u.id, u.username, us.title 
+      FROM submission_members sm 
+      JOIN users u ON sm.participating_user_id = u.id 
+      JOIN user_submissions us ON sm.submission_id = us.id 
+      WHERE sm.submission_id = $1 AND sm.participating_user_id != us.user_id;
+    `;
+
+    const result = await pool.query(query, [submissionId]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      message:
+        "An error occurred while fetching user list for the interaction.",
+    });
+  }
+});
+
+app.get("/api/interaction_feed_user_list", async (req, res) => {
+  try {
+    const submissionId = req.query.submission_id; // Get the submission ID from the query parameters
+
+    if (!submissionId) {
+      return res.status(400).send({ message: "Submission ID is required." });
+    }
+
+    const query = `
+      SELECT u.id, u.username, us.title, u.profile_picture 
+      FROM submission_members sm 
+      JOIN users u ON sm.participating_user_id = u.id 
+      JOIN user_submissions us ON sm.submission_id = us.id 
+      WHERE sm.submission_id = $1;
     `;
 
     const result = await pool.query(query, [submissionId]);

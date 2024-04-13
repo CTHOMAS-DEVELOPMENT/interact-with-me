@@ -456,10 +456,22 @@ input {
   padding: 10px;
   margin-bottom: 10px;
 }
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
 .post-profile-image {
   border-radius: 50%; /* Add some space between image and text */
 }
-
+.post-profile-image.active {
+  animation: bounce 1s infinite;
+}
 .post-content {
   display: flex;
   flex-direction: column;
@@ -557,6 +569,7 @@ input {
 }
 
 .text-update-modal {
+  top: 150px;
   width: 80%;
   background-color: white;
   border-radius: 8px;
@@ -565,11 +578,24 @@ input {
   z-index: 1055;
 }
 /*FeedScreen*/
+Interaction_entry {
+  padding-top: 150px; /* Adjust this value based on the actual height of your header */
+}
 .header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px;
+  position: fixed; /* Add this line to fix the position of the header */
+  top: 0; /* Align the top edge of the element with the top of the viewport */
+  left: 0; /* Align the left edge of the element with the left of the viewport */
+  width: 100%; /* Set the width to 100% of the viewport */
+  z-index: 1000; /* Ensure the header stays on top of other content */
+  background-color: #fff; /* Add a background color to the header, if necessary */
+  /* Keep the rest of your styles */
+}
+
+
+/* Instead of body, add padding to the main content container of your FeedScreen */
+.feed-displacement {
+  padding-top: 150px; /* Adjust this value based on the actual height of your header */
+  /* Other styles for your feed content */
 }
 .header-top {
   display: flex;

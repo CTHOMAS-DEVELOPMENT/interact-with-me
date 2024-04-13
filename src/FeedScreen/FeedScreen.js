@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import io from 'socket.io-client';
+import io from "socket.io-client";
 import PhotoUploadAndEdit from "../PhotoUploadAndEdit/PhotoUploadAndEdit";
 import TextUpdate from "../TextEntry/TextUpdate";
 import TextEntry from "../TextEntry/TextEntry";
@@ -30,6 +30,8 @@ const FeedScreen = () => {
   const [hoveredDeletePostId, setHoveredDeletePostId] = useState(null);
   const [searchActive, setSearchActive] = useState(false);
   const [userIsLive, setUserIsLive] = useState(false); // New state for tracking live updates for involved users
+  const [associatedUsers, setAssociatedUsers] = useState([]);
+  const [activeUsersList, setActiveUsersList] = useState([]);
   const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,7 +66,7 @@ const FeedScreen = () => {
   const handleSearchChange = (event) => {
     setSearchQuery(event.target.value);
   };
-  
+
   const toggleSearch = () => {
     setSearchActive((prev) => !prev);
     // Focus on the input field when it becomes visible (after state update)
@@ -91,14 +93,41 @@ const FeedScreen = () => {
       console.error("Error deleting the post:", error);
     }
   };
-  useEffect(() => {
-    const socket = io(process.env.REACT_APP_BACKEND_HOST); 
 
-    socket.on('connect', () => {
-      socket.emit('register', { userId, submissionIds: [submissionId] });
+  // useEffect to fetch associated users
+  useEffect(() => {
+    if (submissionId) {
+      fetch(`/api/interaction_feed_user_list?submission_id=${submissionId}`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((data) => {
+          // Filter out the current logged-in user from the list
+          const filteredUsers = data.filter((user) => user.id !== userId);
+          setAssociatedUsers(filteredUsers);
+        })
+        .catch((error) => {
+          console.error("Error fetching associated users:", error);
+        });
+    }
+  }, [submissionId, userId]);
+
+  useEffect(() => {
+    const socket = io(process.env.REACT_APP_BACKEND_HOST);
+
+    socket.on("connect", () => {
+      socket.emit("register", { userId, submissionIds: [submissionId] }); // Ensure this is needed
+      socket.emit("enter screen", { userId, submissionId });
     });
 
-    socket.on('post update', (newPost) => {
+    // Update the associated users' active status when the active users update is received
+    socket.on("active users update", (activeUsers) => {
+      setActiveUsersList(activeUsers)
+     });
+    socket.on("post update", (newPost) => {
       const interestedUserIds = newPost.interestedUserIds;
 
       // Check if userId is in interestedUserIds and update userIsLive accordingly
@@ -106,10 +135,12 @@ const FeedScreen = () => {
         setUserIsLive(true);
       }
     });
-
+    //setActiveUsersForSubmission(submissionId);
     return () => {
-      socket.off('connect');
-      socket.off('post update');
+      socket.emit("leave screen", { userId, submissionId });
+      socket.off("connect");
+      socket.off("active users update");
+      socket.off("post update");
       socket.disconnect();
     };
   }, [submissionId, userId]); // Depend on submissionId and userId to re-register on changes
@@ -121,8 +152,8 @@ const FeedScreen = () => {
       // Reset userIsLive after the update
       setUserIsLive(false);
     }
-  }, [userIsLive]); 
-  
+  }, [userIsLive]);
+
   useEffect(() => {
     if (posts.length > 0) {
       // Combine all post content into one large block of text
@@ -181,11 +212,14 @@ const FeedScreen = () => {
     setShowTextUpdate(false);
     fetchPosts(); // Refresh the posts
   };
-  const filteredPosts = searchQuery.length >= 3
-  ? posts.filter(post => 
-      post.content && post.content.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  : posts;
+  const filteredPosts =
+    searchQuery.length >= 3
+      ? posts.filter(
+          (post) =>
+            post.content &&
+            post.content.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : posts;
 
   useEffect(() => {
     if (userId) {
@@ -204,7 +238,15 @@ const FeedScreen = () => {
       fetchPosts();
     }
   }, [submissionId]);
+  useEffect(() => {
+    // Add the class to body
+    document.body.classList.add("feed-displacement");
 
+    // Cleanup function to remove the class when the component unmounts
+    return () => {
+      document.body.classList.remove("feed-displacement");
+    };
+  }, []);
   if (authError) {
     // You could also use navigate("/login") here if you prefer redirection over rendering a message
     return (
@@ -213,9 +255,14 @@ const FeedScreen = () => {
       </div>
     );
   }
+const checkUserIsInActiveList=(user_id, activeUsersList)=>{
 
+  return activeUsersList.includes(user_id)?"active":""
+}
   return (
     <div>
+      {" "}
+      {/* This wraps the entire screen */}
       <div className="header">
         <div className="header-top">
           <Button
@@ -233,27 +280,38 @@ const FeedScreen = () => {
               handleBackToMessagesClick();
             }}
           >
-            <div className="interaction-icon"></div>
-            <div className="interaction-icon current"></div>
+            <div className="interaction-icons">
+              {associatedUsers.map((user) => (
+                <img
+                  key={user.id}
+                  src={`${process.env.REACT_APP_IMAGE_HOST}/${
+                    process.env.REACT_APP_IMAGE_FOLDER
+                  }/thumb-${extractFilename(user.profile_picture)}`}
+                  alt={user.username}
+                  className={`post-profile-image ${
+                    checkUserIsInActiveList(user.id, activeUsersList)
+                  }`}
+                />
+              ))}
+            </div>
           </div>
           <div className="search-container">
-            
-          <Button
-            variant="outline-info" // This should match other buttons
-            className="btn-icon" // Make sure it has the same classes
-            onClick={toggleSearch}
-          >
-            <Search size={25} />
-          </Button>
-          {searchActive && (
-            <input
-              ref={searchInputRef}
-              type="text"
-              className="search-input"
-              placeholder="Type your search"
-              onChange={handleSearchChange}
-            />
-          )}
+            <Button
+              variant="outline-info" // This should match other buttons
+              className="btn-icon" // Make sure it has the same classes
+              onClick={toggleSearch}
+            >
+              <Search size={25} />
+            </Button>
+            {searchActive && (
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="search-input"
+                placeholder="Type your search"
+                onChange={handleSearchChange}
+              />
+            )}
           </div>
         </div>
         <h2 className="header-title font-style-4">{title}</h2>
@@ -262,7 +320,7 @@ const FeedScreen = () => {
         <>
           {showTextUpdate && (
             <div
-              className="modal-backdrop"
+              className="feed-content modal-backdrop"
               onClick={() => setShowTextUpdate(false)}
             >
               <div
@@ -350,7 +408,7 @@ const FeedScreen = () => {
           )}
 
           {userId === post.posting_user_id && (
-            <div>
+            <div className="button_tower">
               {post.type === "text" ? (
                 <Button
                   variant="outline-info"
@@ -387,7 +445,17 @@ const FeedScreen = () => {
               </Button>
             </div>
           )}
-          {userId !== post.posting_user_id && <span>X</span>}
+          {userId !== post.posting_user_id && (
+            <div className="button_tower" style={{ opacity: 0.5 }}>
+              <Button variant="outline-info" className="btn-sm" disabled>
+                Update
+              </Button>
+
+              <Button variant="danger" className="btn-sm" disabled>
+                <Trash size={25} />
+              </Button>
+            </div>
+          )}
         </div>
       ))}
       <h2>Summary</h2>

@@ -10,6 +10,7 @@
 //node-nlp
 
 //https://playground.com/create
+//https://www.remove.bg/upload
 import { useEffect, useState } from 'react';
 import * as qna from '@tensorflow-models/qna';
 
