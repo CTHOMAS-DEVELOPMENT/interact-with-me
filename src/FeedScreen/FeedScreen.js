@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import AlertMessage from "../system/AlertMessage";
 import io from "socket.io-client";
 import PhotoUploadAndEdit from "../PhotoUploadAndEdit/PhotoUploadAndEdit";
 import TextUpdate from "../TextEntry/TextUpdate";
 import TextEntry from "../TextEntry/TextEntry";
 import { extractFilename, getThumbnailPath } from "../system/utils";
-import { Button } from "react-bootstrap";
+import { Button, Spinner } from "react-bootstrap";
 import {
   ArrowLeftCircleFill,
   Search,
@@ -13,8 +14,9 @@ import {
   ImageFill,
   Trash,
   TrashFill,
+  MicFill,
+  MicMuteFill,
 } from "react-bootstrap-icons";
-
 import "bootstrap/dist/css/bootstrap.min.css";
 import { checkAuthorization } from "../system/authService";
 const FeedScreen = () => {
@@ -32,6 +34,11 @@ const FeedScreen = () => {
   const [userIsLive, setUserIsLive] = useState(false); // New state for tracking live updates for involved users
   const [associatedUsers, setAssociatedUsers] = useState([]);
   const [activeUsersList, setActiveUsersList] = useState([]);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [message, setMessage] = useState("");
+  const [type, setType] = useState("info");
   const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -43,6 +50,42 @@ const FeedScreen = () => {
   };
   const [summary, setSummary] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  // In your FeedScreen component
+  const [audioURL, setAudioURL] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const audioRef = useRef(new Audio());
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]); // useRef to keep the audio data across renders
+  const handleStartRecording = () => {
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        mediaRecorder.start();
+        setIsRecording(true);
+
+        const audioChunks = [];
+        mediaRecorder.addEventListener("dataavailable", (event) => {
+          audioChunks.push(event.data);
+        });
+
+        mediaRecorder.addEventListener("stop", () => {
+          const blob = new Blob(audioChunks, { type: "audio/mp3" });
+          setAudioBlob(blob);
+          setIsRecording(false);
+          stream.getTracks().forEach((track) => track.stop());
+          uploadAudio(blob); // Trigger upload after stopping
+        });
+      })
+      .catch((error) => console.error("Failed to start recording:", error));
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    }
+  };
 
   const fetchSummary = (fullText) => {
     setIsSummaryLoading(true); // Start loading
@@ -125,11 +168,11 @@ const FeedScreen = () => {
 
     // Update the associated users' active status when the active users update is received
     socket.on("active users update", (activeUsers) => {
-      setActiveUsersList(activeUsers)
-     });
+      setActiveUsersList(activeUsers);
+    });
     socket.on("post update", (newPost) => {
       const interestedUserIds = newPost.interestedUserIds;
-
+      console.log("interestedUserIds", interestedUserIds.join());
       // Check if userId is in interestedUserIds and update userIsLive accordingly
       if (interestedUserIds.includes(parseInt(userId, 10))) {
         setUserIsLive(true);
@@ -153,7 +196,18 @@ const FeedScreen = () => {
       setUserIsLive(false);
     }
   }, [userIsLive]);
-
+  useEffect(() => {
+    // If there's a new audio URL, play the audio
+    if (audioURL && audioRef.current) {
+      audioRef.current.src = audioURL; // Set the source for the audio player
+      audioRef.current.play() // Play the audio
+        .catch((error) => {
+          console.error("Playback failed", error);
+          // Handle failure to autoplay here, e.g., due to browser autoplay policies
+        });
+    }
+  }, [audioURL]); // This effect should run every time the audioURL changes
+  
   useEffect(() => {
     if (posts.length > 0) {
       // Combine all post content into one large block of text
@@ -255,10 +309,45 @@ const FeedScreen = () => {
       </div>
     );
   }
-const checkUserIsInActiveList=(user_id, activeUsersList)=>{
+  // Update the uploadAudio function to take a Blob as an argument
+  const uploadAudio = async (blob) => {
+    if (!blob) {
+      console.error("No audio to upload");
+      return;
+    }
 
-  return activeUsersList.includes(user_id)?"active":""
-}
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("audio", blob, "voice-message.mp3");
+    formData.append("submissionId", submissionId);
+    formData.append("userId", userId);
+
+    try {
+      const response = await fetch("/api/upload-audio", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      //setUploadStatus("Upload successful!");
+      setMessage("Upload successful!");
+      setType("info");
+    } catch (error) {
+      //console.error("Error uploading audio:", error);
+      setMessage("Upload failed!");
+      setType("error");
+      //setUploadStatus("Upload failed!");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const checkUserIsInActiveList = (user_id, activeUsersList) => {
+    return activeUsersList.includes(user_id) ? "active" : "";
+  };
+
+  const validateUploadedSoundFile = (path) => {
+    return /\.(mp3|wav|ogg)$/i.test(path); // Case-insensitive check for common audio formats
+  };
   return (
     <div>
       {" "}
@@ -288,9 +377,10 @@ const checkUserIsInActiveList=(user_id, activeUsersList)=>{
                     process.env.REACT_APP_IMAGE_FOLDER
                   }/thumb-${extractFilename(user.profile_picture)}`}
                   alt={user.username}
-                  className={`post-profile-image ${
-                    checkUserIsInActiveList(user.id, activeUsersList)
-                  }`}
+                  className={`post-profile-image ${checkUserIsInActiveList(
+                    user.id,
+                    activeUsersList
+                  )}`}
                 />
               ))}
             </div>
@@ -368,19 +458,62 @@ const checkUserIsInActiveList=(user_id, activeUsersList)=>{
                 onPostSubmit={fetchPosts}
               />
             </div>
-            <Button
-              variant="outline-info"
-              className="btn-icon btn-delete"
-              onMouseEnter={() => setIsImageHovered(true)}
-              onMouseLeave={() => setIsImageHovered(false)}
-              onClick={handleGetNewPicture}
-            >
-              {isImageHovered ? <ImageFill size={25} /> : <Image size={25} />}
-            </Button>
+            <div className="button-tower">
+              <div className="audio-controls">
+                <Button
+                  variant="outline-info"
+                  className="btn-icon"
+                  onClick={
+                    isRecording ? handleStopRecording : handleStartRecording
+                  }
+                >
+                  {isRecording ? (
+                    <MicMuteFill size={25} />
+                  ) : (
+                    <MicFill size={25} />
+                  )}
+                  {isRecording && (
+                    <Spinner
+                      as="span"
+                      animation="border"
+                      size="sm"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                  )}
+                </Button>
+                <div className="upload-status">
+                  {isUploading ? (
+                    <>
+                      <Spinner
+                        as="span"
+                        animation="border"
+                        size="sm"
+                        role="status"
+                        aria-hidden="true"
+                      />
+                      <p>Uploading...</p>
+                    </>
+                  ) : (
+                    <p>{uploadStatus}</p>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant="outline-info"
+                className="btn-icon btn-delete"
+                onMouseEnter={() => setIsImageHovered(true)}
+                onMouseLeave={() => setIsImageHovered(false)}
+                onClick={handleGetNewPicture}
+              >
+                {isImageHovered ? <ImageFill size={25} /> : <Image size={25} />}
+              </Button>
+            </div>
           </div>
+          {message && <AlertMessage message={message} type={type} />}
         </>
       )}
-      {/* List of combined posts *New**/}
+      {/* List of combined posts*/}
       {filteredPosts.map((post) => (
         <div key={post.id} className="element-group-box">
           <img
@@ -395,13 +528,25 @@ const checkUserIsInActiveList=(user_id, activeUsersList)=>{
             <div className="speech-bubble">
               <div>{post.content}</div>
             </div>
+          ) : validateUploadedSoundFile(post.uploaded_path) ? (
+            <audio controls ref={audioRef}>
+              <source
+                src={`${
+                  process.env.REACT_APP_IMAGE_HOST
+                }${post.uploaded_path.replace(/\\/g, "/")}`}
+                type="audio/mp3"
+              />
+              Your browser does not support the audio element.
+            </audio>
           ) : (
             <div className="post-image-container">
               <img
                 className={
                   userId === post.posting_user_id ? "resizable-image" : ""
                 }
-                src={`${process.env.REACT_APP_IMAGE_HOST}${post.uploaded_path}`}
+                src={`${
+                  process.env.REACT_APP_IMAGE_HOST
+                }${post.uploaded_path.replace(/\\/g, "/")}`}
                 alt="User Post"
               />
             </div>
@@ -416,6 +561,15 @@ const checkUserIsInActiveList=(user_id, activeUsersList)=>{
                   onClick={() => {
                     setPostIdForText(post.id, post.content);
                   }}
+                >
+                  Update
+                </Button>
+              ) : validateUploadedSoundFile(post.uploaded_path) ? (
+                <Button
+                  variant="outline-info"
+                  className="btn-sm"
+                  style={{ opacity: 0.5 }}
+                  disabled
                 >
                   Update
                 </Button>

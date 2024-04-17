@@ -95,6 +95,22 @@
   flex-direction: column; /* Stack buttons vertically */
   align-items: center; /* Center-align the buttons */
 }
+
+.round-button {
+  width: 40px; 
+  height: 40px; 
+  padding: 0; 
+  border-radius: 50%; 
+  display: inline-block; 
+  text-align: center; 
+  line-height: 40px;
+  margin-right: 5px; 
+}
+
+.round-button:not(.selected):hover, .round-button.selected {
+  background-color: #007bff; 
+  color: white;
+}
 /* Container for the form and the image panel */
 .system-container {
   display: flex;
@@ -266,6 +282,17 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.filter-select, .filter-input {
+  font-size: 0.8rem;
+  padding: 5px;
+  margin-right: 10px;
+}
+
+.filter-container span {
+  display: block;  
+  font-size: 0.8rem;
+  color: #666; 
+}
 
 .interaction-title {
   text-align: left;
@@ -382,6 +409,13 @@ input {
   max-width: 600px; /* Maximum width of the container */
   margin: auto; /* This will ensure the container is centered horizontally */
   /* Remove any specific margin-top if you want to let the container flow naturally within the document */
+}
+.dropdown-container {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  padding: 20px;
+  margin-top: 20px;
 }
 
 .user-edit-item {
@@ -506,6 +540,9 @@ input {
 .text-entry-container {
   flex-grow: 1; /* Allows text input to fill space */
   /* other styles remain the same */
+}
+.text-input-and-button {
+  display: flex;
 }
 .image-upload-buttons {
   display: flex;

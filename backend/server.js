@@ -11,24 +11,12 @@ const cors = require("cors"); // Assuming you're using the 'cors' package for Ex
 const JSZip = require("jszip");
 const util = require("util");
 const HOST = "localhost";
-const PORTFOREMAIL = "3000";
+const PORTFORAPP = "3000";
 const PORTNO = 5432;
 // Create a new express application
 const app = express();
 const server = http.createServer(app);
-app.use(
-  cors({
-    origin: "http://localhost:3000", // Allow your frontend origin
-  })
-);
-const io = socketIo(server, {
-  cors: {
-    origin: "http://localhost:3000", // Allow your frontend origin
-    methods: ["GET", "POST"], // Specify which HTTP methods are allowed
-    allowedHeaders: ["my-custom-header"], // Optional: specify headers
-    credentials: true, // Optional: if you need credentials
-  },
-});
+
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 //const { OpenAI } = require('openai');
@@ -63,6 +51,22 @@ loadEnvVariables();
 const RESET_EMAIL = process.env.RESET_EMAIL;
 const HF_TOKEN = process.env.HF_TOKEN;
 const JWT_SECRET = process.env.LG_TOKEN;
+const PORTFORAPPX = process.env.PORTFORAPP;
+console.log("PORTFORAPPX", PORTFORAPPX);
+
+app.use(
+  cors({
+    origin: `http://localhost:3000`, // Allow your frontend origin
+  })
+);
+const io = socketIo(server, {
+  cors: {
+    origin: "http://localhost:3000", // Allow your frontend origin
+    methods: ["GET", "POST"], // Specify which HTTP methods are allowed
+    allowedHeaders: ["my-custom-header"], // Optional: specify headers
+    credentials: true, // Optional: if you need credentials
+  },
+});
 // Initialize the HfInference object with your API token
 const inference = new HfInference(HF_TOKEN);
 
@@ -150,8 +154,16 @@ pgClient.query("LISTEN new_post");
 const clientSubmissions = {}; // { socketId: { userId: Number, submissionIds: Set(Number) } }
 const activeUsersPerSubmission = {};
 
-
 io.on("connection", (socket) => {
+  socket.on("register", ({ userId, submissionIds }) => {
+    if (!clientSubmissions[socket.id]) {
+        clientSubmissions[socket.id] = { userId, activeUsers: new Set(), submissionIds: new Set(submissionIds) };
+    }
+    // Add user to active users
+    clientSubmissions[socket.id].activeUsers.add(userId);
+    console.log("Registered: ", clientSubmissions);
+});
+
   socket.on("enter screen", ({ userId, submissionId }) => {
     // Ensure this socket joins a room specific to the submissionId
     socket.join(`submission-${submissionId}`);
@@ -191,16 +203,15 @@ io.on("connection", (socket) => {
     socket.leave(`submission-${submissionId}`);
   });
 });
-;
-
 pgClient.on("notification", async (msg) => {
+  console.log("notification", msg);
   let newPost = JSON.parse(msg.payload); // Assuming newPost is a mutable object here
 
   // Query the database for users interested in this submission
   const query = `SELECT participating_user_id FROM submission_members WHERE submission_id = $1`;
   const res = await pgClient.query(query, [newPost.submission_id]);
   const interestedUserIds = res.rows.map((row) => row.participating_user_id);
-
+  console.log("interestedUserIds", interestedUserIds.join());
   // Check if the posting user is currently active
   let isActive = false;
   Object.values(clientSubmissions).forEach(({ userId, activeUsers }) => {
@@ -209,11 +220,22 @@ pgClient.on("notification", async (msg) => {
     }
   });
   newPost = { ...newPost, interestedUserIds };
+  console.log("newPost", newPost);
   newPost.isActive = isActive;
-
+  console.log("Type of userId in clientSubmissions", typeof userId);
+  console.log("Type of IDs in interestedUserIds", typeof interestedUserIds[0]);
+  console.log("clientSubmissions", clientSubmissions);
   // Emit to clients interested in this submission_id
   Object.entries(clientSubmissions).forEach(
     ([socketId, { userId, submissionIds }]) => {
+      console.log(
+        "interestedUserIds.includes(userId)",
+        interestedUserIds.includes(userId)
+      );
+      console.log(
+        "submissionIds.has(newPost.submission_id)",
+        submissionIds.has(newPost.submission_id)
+      );
       if (
         interestedUserIds.includes(userId) &&
         submissionIds.has(newPost.submission_id)
@@ -949,7 +971,7 @@ app.delete("/api/delete-connection/:id", async (req, res) => {
 app.get("/api/users", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex FROM users"
+      "SELECT id, username, profile_picture, email, sexual_orientation, hobbies, floats_my_boat, sex FROM users ORDER BY username"
     );
     res.json(result.rows);
   } catch (error) {
@@ -976,7 +998,26 @@ async function findUserById(userId) {
     throw error; // Rethrow the error for calling function to handle
   }
 }
+app.post("/api/upload-audio", upload.single("audio"), async (req, res) => {
+  try {
+    const { submissionId, userId } = req.body; // Extract the submissionId and userId from the request body
+    const uploadedFilePath = path.join(
+      "/uploaded-images", // Ensure all audio files go to the 'uploaded-audio' directory
+      path.basename(req.file.path)
+    );
 
+    // Insert into the submission_dialog table
+    const result = await pool.query(
+      "INSERT INTO submission_dialog (submission_id, posting_user_id, uploaded_path) VALUES ($1, $2, $3) RETURNING *",
+      [submissionId, userId, uploadedFilePath] // Include type of upload if your table supports it
+    );
+
+    res.json(result.rows[0]); // Return the new database entry
+  } catch (error) {
+    console.error("Failed to upload audio file:", error);
+    res.status(500).send("Error uploading audio file.");
+  }
+});
 app.get("/api/users/:userId/profile-picture", async (req, res) => {
   const { userId } = req.params;
 
@@ -1817,7 +1858,7 @@ app.post("/api/password_reset_request", async (req, res) => {
     ]);
 
     // Create reset URL
-    const resetUrl = `http://${HOST}:${PORTFOREMAIL}/password-reset?token=${resetToken}`;
+    const resetUrl = `http://${HOST}:${PORTFORAPP}/password-reset?token=${resetToken}`;
 
     // Send email
     const mailOptions = {

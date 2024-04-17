@@ -53,7 +53,7 @@ const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
             placeholder="What's on your mind?"
             disabled={isSubmitting}
           />
-          {message && <AlertMessage message={message} type={type} />}
+
           <Button
             type="submit"
             variant="outline-info"
@@ -63,6 +63,8 @@ const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
           >
             {isImageHovered ? <RocketFill size={25} /> : <Rocket size={25} />}
           </Button>
+          {message && <AlertMessage message={message} type={type} />}
+
         </div>
       </form>
     </div>
