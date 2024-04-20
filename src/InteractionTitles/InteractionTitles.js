@@ -5,26 +5,39 @@ import AlertMessage from "../system/AlertMessage";
 
 import "bootstrap/dist/css/bootstrap.min.css";
 
-const InteractionTitles = ({ loggedInUserId }) => {
+const InteractionTitles = ({ loggedInUserId, shouldRefreshInteractions, resetRefreshTrigger }) => {
   const [interactions, setInteractions] = useState([]);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
   const [endedInteractions, setEndedInteractions] = useState([]); // Track ended interactions
   const navigate = useNavigate();
-
-  useEffect(() => {
+  const fetchInteractions = ()=>{
     fetch(`/api/my_interaction_titles?logged_in_id=${loggedInUserId}`)
-      .then((response) => response.json())
-      .then((data) => {
-        setInteractions(data);
-      })
-      .catch((error) => {
-        console.error("Error fetching interactions:", error);
-        setMessage(`Error fetching interactions:${error}`);
-        setType("error");
-      });
-  }, [loggedInUserId]);
+    .then((response) => response.json())
+    .then((data) => {
+      setInteractions(data);
+    })
+    .catch((error) => {
+      console.error("Error fetching interactions:", error);
+      setMessage(`Error fetching interactions:${error}`);
+      setType("error");
+    });
 
+  }
+  useEffect(() => {
+    fetchInteractions()
+  }, [loggedInUserId]);
+  useEffect(() => {
+    if (shouldRefreshInteractions) {
+      resetRefreshTrigger();
+    }
+  }, [shouldRefreshInteractions, resetRefreshTrigger, loggedInUserId]);
+  useEffect(() => {
+    if (shouldRefreshInteractions) {
+      fetchInteractions(); // Your function that fetches interactions
+      resetRefreshTrigger(); // Reset the trigger passed down from parent
+    }
+  }, [shouldRefreshInteractions, resetRefreshTrigger]);
   const handleTitleClick = (data) => {
     navigate("/feed", {
       state: {

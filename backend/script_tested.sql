@@ -26,6 +26,7 @@ CREATE TABLE users (
     email CHARACTER VARYING(100) NOT NULL UNIQUE,
     password CHARACTER VARYING(255) NOT NULL,
     profile_picture CHARACTER VARYING(255),
+    profile_video CHARACTER VARYING(255),
     token CHARACTER VARYING(255),
     sexual_orientation sexual_orientation_type DEFAULT 'Undisclosed',
     hobbies hobby_type DEFAULT 'Other',

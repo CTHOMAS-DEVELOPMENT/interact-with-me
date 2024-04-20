@@ -15,3 +15,10 @@ export const getThumbnailPath = imagePath => {
   imagePathParts.push(thumbnailFilename);
   return imagePathParts.join('/');
 };
+export const convertToMediaPath = (dbPath) => {
+  const rtnValue=dbPath.replace(
+    /^backend\\imageUploaded\\/,
+    "/uploaded-images/"
+  );
+  return rtnValue?rtnValue:"";
+}

@@ -161,7 +161,6 @@ io.on("connection", (socket) => {
     }
     // Add user to active users
     clientSubmissions[socket.id].activeUsers.add(userId);
-    console.log("Registered: ", clientSubmissions);
 });
 
   socket.on("enter screen", ({ userId, submissionId }) => {
@@ -172,10 +171,6 @@ io.on("connection", (socket) => {
       activeUsersPerSubmission[submissionId] = new Set();
     }
     activeUsersPerSubmission[submissionId].add(userId);
-    console.log(
-      "Entering: activeUsersPerSubmission[" + submissionId + "]",
-      activeUsersPerSubmission[submissionId]
-    );
 
     // Emit only to sockets in the same submissionId room
     io.to(`submission-${submissionId}`).emit(
@@ -187,11 +182,6 @@ io.on("connection", (socket) => {
   socket.on("leave screen", ({ userId, submissionId }) => {
     if (activeUsersPerSubmission[submissionId]) {
       activeUsersPerSubmission[submissionId].delete(userId);
-      console.log(
-        "Leaving: activeUsersPerSubmission[" + submissionId + "]",
-        activeUsersPerSubmission[submissionId]
-      );
-
       // Emit only to sockets in the same submissionId room
       io.to(`submission-${submissionId}`).emit(
         "active users update",
@@ -204,14 +194,12 @@ io.on("connection", (socket) => {
   });
 });
 pgClient.on("notification", async (msg) => {
-  console.log("notification", msg);
   let newPost = JSON.parse(msg.payload); // Assuming newPost is a mutable object here
 
   // Query the database for users interested in this submission
   const query = `SELECT participating_user_id FROM submission_members WHERE submission_id = $1`;
   const res = await pgClient.query(query, [newPost.submission_id]);
   const interestedUserIds = res.rows.map((row) => row.participating_user_id);
-  console.log("interestedUserIds", interestedUserIds.join());
   // Check if the posting user is currently active
   let isActive = false;
   Object.values(clientSubmissions).forEach(({ userId, activeUsers }) => {
@@ -220,22 +208,10 @@ pgClient.on("notification", async (msg) => {
     }
   });
   newPost = { ...newPost, interestedUserIds };
-  console.log("newPost", newPost);
   newPost.isActive = isActive;
-  console.log("Type of userId in clientSubmissions", typeof userId);
-  console.log("Type of IDs in interestedUserIds", typeof interestedUserIds[0]);
-  console.log("clientSubmissions", clientSubmissions);
   // Emit to clients interested in this submission_id
   Object.entries(clientSubmissions).forEach(
     ([socketId, { userId, submissionIds }]) => {
-      console.log(
-        "interestedUserIds.includes(userId)",
-        interestedUserIds.includes(userId)
-      );
-      console.log(
-        "submissionIds.has(newPost.submission_id)",
-        submissionIds.has(newPost.submission_id)
-      );
       if (
         interestedUserIds.includes(userId) &&
         submissionIds.has(newPost.submission_id)
@@ -971,7 +947,7 @@ app.delete("/api/delete-connection/:id", async (req, res) => {
 app.get("/api/users", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, username, profile_picture, email, sexual_orientation, hobbies, floats_my_boat, sex FROM users ORDER BY username"
+      "SELECT id, username, profile_picture, profile_video, email, sexual_orientation, hobbies, floats_my_boat, sex FROM users ORDER BY username"
     );
     res.json(result.rows);
   } catch (error) {
@@ -1088,7 +1064,6 @@ app.post(
 
         if (fs.existsSync(fullPath)) {
           await fs.promises.unlink(fullPath);
-          console.log(`Deleted existing profile picture: ${fullPath}`);
         }
       }
 
@@ -1111,6 +1086,59 @@ app.post(
     }
   }
 );
+
+// Separate multer configuration for profile video uploads
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: 'backend/imageUploaded', // Adjust directory path as needed
+    filename: (req, file, cb) => {
+      cb(null, 'profile-video-' + Date.now() + path.extname(file.originalname));
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    // Accept videos only
+    if (!file.originalname.match(/\.(mp4|mov)$/)) {
+      req.fileValidationError = 'Only video files are allowed!';
+      return cb(new Error('Only video files are allowed!'), false);
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 30 * 1024 * 1024 } // 30MB size limit
+}).single('profileVideo');
+
+app.post('/api/users/:userId/upload-profile-video', (req, res) => {
+  videoUpload(req, res, async (err) => {
+    if (req.fileValidationError) {
+      return res.status(400).send(req.fileValidationError);
+    }
+    if (err instanceof multer.MulterError) {
+      return res.status(500).send(err.message);
+    } else if (err) {
+      return res.status(500).send(err.message);
+    }
+
+    // No error thrown by multer, file has been uploaded successfully
+    const userId = req.params.userId;
+    const profileVideoPath = req.file.path; // The file path where the video is stored
+
+    try {
+      const result = await pool.query(
+        'UPDATE users SET profile_video = $1 WHERE id = $2 RETURNING *',
+        [profileVideoPath, userId]
+      );
+
+      if (result.rows.length > 0) {
+        res.status(200).json({ message: 'Profile video updated successfully.', user: result.rows[0] });
+      } else {
+        res.status(404).send({ message: 'User not found.' });
+      }
+    } catch (error) {
+      console.error('Error updating profile video:', error);
+      res.status(500).send({ message: 'Error updating profile video.' });
+    }
+  });
+});
+
 app.delete("/api/submission-dialog/:dialogId", async (req, res) => {
   const { dialogId } = req.params;
 
@@ -1504,7 +1532,6 @@ app.post(
       const uniqueUserIds = [
         ...new Set(interactionData.map((entry) => entry.posting_user_id)),
       ];
-      console.log("uniqueUserIds", uniqueUserIds);
       // Insert unique posting_user_ids into submission_members
       for (const postingUserId of uniqueUserIds) {
         await pool.query(
@@ -1569,7 +1596,6 @@ async function deleteExpiredInteractions() {
         const fullPath = path.join(__dirname, "imageUploaded", sanitizedPath);
 
         try {
-          console.log(`Attempting to delete: ${fullPath}`);
           if (fs.existsSync(fullPath)) {
             await fs.promises.unlink(fullPath);
             console.log(`Successfully deleted: ${fullPath}`);
@@ -1739,7 +1765,7 @@ app.get("/api/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      "SELECT id, username, email, profile_picture, sexual_orientation, hobbies, floats_my_boat, sex FROM users WHERE id = $1",
+      "SELECT id, username, email, profile_picture, profile_video, sexual_orientation, hobbies, floats_my_boat, sex FROM users WHERE id = $1",
       [id] // Make sure to select the new 'sex' column here
     );
     res.json(result.rows[0]);

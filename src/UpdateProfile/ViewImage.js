@@ -1,44 +1,61 @@
 import React, { useState, useEffect } from "react";
 import ImageUploader from "../RegistrationProfileCreation/imageUploader";
+import LoadAVideo from "../Video/LoadAVideo";
+import { convertToMediaPath } from "../system/utils";
 import { Button, Modal } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
-const ViewImage = ({ userId }) => {
-  const [profilePicture, setProfilePicture] = useState(null);
-  const [showUploader, setShowUploader] = useState(false); // State to control the display of ImageUploader
 
+const ViewImage = ({ userId, profileVideo = "", profileImage = "" }) => {
+  const [profilePicture, setProfilePicture] = useState(profileImage);
+  const [showUploader, setShowUploader] = useState(false);
+  const [showVideoUploader, setShowVideoUploader] = useState(false);
+  const [videoPath, setVideoPath] = useState(profileVideo);
+
+  // Update profilePicture when profileImage prop changes
   useEffect(() => {
-    const fetchProfilePicture = async () => {
-      try {
-        const response = await fetch(`/api/users/${userId}/profile-picture`);
-        
-        if (!response.ok) throw new Error("Failed to fetch profile picture");
-        const data = await response.json();
-        setProfilePicture(data.profilePicture);
-      } catch (error) {
-        console.error("Error fetching profile picture:", error);
-      }
-    };
+    if (profileImage) {
+      setProfilePicture(profileImage);
+    }
+  }, [profileImage]);
 
-    fetchProfilePicture();
-  }, [userId]);
+  // Update videoPath when profileVideo prop changes
+  useEffect(() => {
+    if (profileVideo) {
+      setVideoPath(profileVideo);
+    }
+  }, [profileVideo]);
+
+  const handleProfileVideo = () => {
+    setShowVideoUploader(!showVideoUploader);
+  };
+
   const handleProfilePictureUpdate = () => {
-    // Navigate to profile picture update page or open a modal for updating the profile picture
-    // This is a placeholder action and should be replaced with actual logic
-    setShowUploader(true); // Show the uploader
+    setShowUploader(true);
   };
+
   const handleCloseUploader = () => {
-    setShowUploader(false); // Hide the uploader
+    setShowUploader(false);
   };
+
+  const handleCloseVideoUploader = () => {
+    setShowVideoUploader(false);
+  };
+
   const handleUploadSuccess = (newProfilePicture) => {
-    // Use the environment variable to construct the new image path with cache-busting
-    const updatedProfilePicture = `${process.env.REACT_APP_IMAGE_HOST}/uploaded-images/${newProfilePicture.split("\\").pop()}?timestamp=${new Date().getTime()}`;
+    const updatedProfilePicture = `${
+      process.env.REACT_APP_IMAGE_HOST
+    }/uploaded-images/${newProfilePicture
+      .split("\\")
+      .pop()}?timestamp=${new Date().getTime()}`;
     setProfilePicture(updatedProfilePicture);
     handleCloseUploader();
   };
-  useEffect(() => {
-    // This effect will run when `profilePicture` changes.
-    // It's mainly for debugging to see if `profilePicture` is properly updated.
-  }, [profilePicture]);
+
+  const handleVideoUploadSuccess = (data) => {
+    setVideoPath(convertToMediaPath(data.user.profile_video));
+    handleCloseVideoUploader();
+  };
+
   return (
     <div className="profile-picture-container">
       {profilePicture ? (
@@ -50,6 +67,13 @@ const ViewImage = ({ userId }) => {
             onClick={handleProfilePictureUpdate}
           >
             Update Profile Image
+          </Button>
+          <Button
+            variant="outline-info"
+            className="btn-sm"
+            onClick={handleProfileVideo}
+          >
+            {videoPath ? "Update Profile Video" : "Add Profile Video"}
           </Button>
         </div>
       ) : (
@@ -64,12 +88,28 @@ const ViewImage = ({ userId }) => {
           </Button>
         </div>
       )}
+      {videoPath && (
+        <div>
+          <video src={videoPath} controls style={{ width: "80%" }} />{" "}
+          {/* Adjust width as necessary */}
+        </div>
+      )}
       <Modal show={showUploader} onHide={handleCloseUploader}>
         <Modal.Header closeButton>
           <Modal.Title>Add/Update Profile Picture</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <ImageUploader userId={userId} onUpload={handleUploadSuccess} />
+        </Modal.Body>
+      </Modal>
+      <Modal show={showVideoUploader} onHide={handleCloseVideoUploader}>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {videoPath ? "Update Profile Video" : "Add Profile Video"}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <LoadAVideo userId={userId} onUpload={handleVideoUploadSuccess} />
         </Modal.Body>
       </Modal>
     </div>

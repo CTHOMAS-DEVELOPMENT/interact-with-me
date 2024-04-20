@@ -25,6 +25,8 @@ const UsersList = () => {
   const [connectionRequests, setConnectionRequests] = useState(0);
   const [requestsFromOthers, setRequestsFromOthers] = useState(0);
   const [refreshNeeded, setRefreshNeeded] = useState(false);
+  const [shouldRefreshInteractions, setShouldRefreshInteractions] =
+    useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const loggedInUserId = location.state ? location.state.userId : null;
@@ -44,7 +46,6 @@ const UsersList = () => {
         return response.json(); // Assuming the server responds with JSON
       })
       .then((data) => {
-        console.log("Connection successfully deleted:", data);
         fetchConnectedUsers(); // Refresh the list to reflect the deletion
       })
       .catch((error) => {
@@ -90,6 +91,7 @@ const UsersList = () => {
   const handleToggleConnectionRequests = () => {
     setShowConnectionRequests(!showConnectionRequests); // Toggle the visibility
   };
+  
   const handleToggleRequestsFromOthers = () => {
     setShowRequestsFromOthers(!showRequestsFromOthers);
   };
@@ -97,7 +99,7 @@ const UsersList = () => {
     if (refreshNeeded) {
       // Perform your refresh actions here
       fetchConnectedUsers(); // Example action: re-fetch connected users
-
+      setShouldRefreshInteractions(true);
       // Optionally, reset other states or perform additional updates
 
       setRefreshNeeded(false); // Reset the refresh trigger
@@ -111,7 +113,7 @@ const UsersList = () => {
   useEffect(() => {
     if (submitSuccess) {
       // Perform actions on success, e.g., show a success message, redirect, etc.
-      console.log("Request connections successful");
+      //console.log("Request connections successful");
     }
   }, [submitSuccess]);
   useEffect(() => {
@@ -219,7 +221,6 @@ const UsersList = () => {
           return;
         }
 
-        console.log("ZIP archive is valid.");
         // Proceed to process the ZIP file (e.g., extract and display contents)
         uploadZipFile(file, loggedInUserId);
         // After processing the file, clear the input to allow for new uploads
@@ -445,7 +446,11 @@ const UsersList = () => {
           Load Previously Saved Interaction
         </Button>
       </div>
-      <InteractionTitles loggedInUserId={loggedInUserId} />
+      <InteractionTitles
+        loggedInUserId={loggedInUserId}
+        shouldRefreshInteractions={shouldRefreshInteractions}
+        resetRefreshTrigger={() => setShouldRefreshInteractions(false)}
+      />
     </div>
   );
 };

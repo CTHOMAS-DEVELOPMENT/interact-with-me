@@ -6,12 +6,14 @@ import ViewImage from "./ViewImage.js";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { checkAuthorization } from "../system/authService"; // Ensure this path matches your file structure
-
+import { convertToMediaPath } from "../system/utils"
 const UpdateProfile = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const userId = location.state?.userId;
   const [authError, setAuthError] = useState(false);
+  const [profileVideo, setProfileVideo] = useState();
+  const [profileImage, setProfileImage] = useState();
   // Dropdown options extracted from environment variables
   const hobbyOptions = process.env.REACT_APP_HOBBY_TYPE.split(",");
   const sexualOrientationOptions =
@@ -60,6 +62,20 @@ const UpdateProfile = () => {
           floatsMyBoat: user.floats_my_boat || "",
           sex: user.sex || "",
         });
+        //console.log("user.profile_picTure",user.profile_picture)
+        //console.log("convertToMediaPath(user.profile_picTure)",convertToMediaPath(user.profile_picture))
+        
+        //console.log("user.profile_video",user.profile_video)
+        //console.log("convertToMediaPath(user.profile_video)",convertToMediaPath(user.profile_video))
+        if(user.profile_video)
+        {
+          setProfileVideo(convertToMediaPath(user.profile_video))
+        }
+        if(user.profile_picture)
+        {
+          setProfileImage(convertToMediaPath(user.profile_picture))
+        }
+        
       })
       .catch((error) => {
         console.error("Error fetching user data:", error);
@@ -137,7 +153,7 @@ const UpdateProfile = () => {
 
       <h2>Update Profile</h2>
       <div className="button-group">
-        <ViewImage userId={userId} />
+        <ViewImage userId={userId} profileVideo={profileVideo} profileImage={profileImage}/>
       </div>
       <form onSubmit={handleSubmit}>
         <div className="system-form">
