@@ -319,7 +319,7 @@ const UsersList = () => {
         >
           Profile
         </Button>
-
+        <h2>Communication Centre</h2>
         {showFilter && (
           <Modal show={showFilter} onHide={toggleFilter} centered>
             <Modal.Header closeButton>

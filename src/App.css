@@ -499,7 +499,28 @@ input {
     transform: translateY(-10px);
   }
 }
-
+@keyframes float {
+  0%, 100% {
+    transform: translateY(-50%) translateX(0);
+  }
+  50% {
+    transform: translateY(-50%) translateX(-10px);
+  }
+}
+.btn-pulse {
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 .post-profile-image {
   border-radius: 50%; /* Add some space between image and text */
 }
@@ -631,7 +652,7 @@ Interaction_entry {
 
 /* Instead of body, add padding to the main content container of your FeedScreen */
 .feed-displacement {
-  padding-top: 150px; /* Adjust this value based on the actual height of your header */
+  padding-top: 160px; /* Adjust this value based on the actual height of your header */
   /* Other styles for your feed content */
 }
 .header-top {

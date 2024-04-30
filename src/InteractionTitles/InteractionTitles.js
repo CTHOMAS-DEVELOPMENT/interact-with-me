@@ -5,27 +5,40 @@ import AlertMessage from "../system/AlertMessage";
 
 import "bootstrap/dist/css/bootstrap.min.css";
 
-const InteractionTitles = ({ loggedInUserId, shouldRefreshInteractions, resetRefreshTrigger }) => {
+const InteractionTitles = ({
+  loggedInUserId,
+  shouldRefreshInteractions,
+  resetRefreshTrigger,
+}) => {
   const [interactions, setInteractions] = useState([]);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
   const [endedInteractions, setEndedInteractions] = useState([]); // Track ended interactions
   const navigate = useNavigate();
-  const fetchInteractions = ()=>{
+  const svgStyle = {
+    position: "absolute",
+    left: "-60px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    animation: "float 2s ease-in-out infinite",
+  };
+  const buttonStyle = {
+    animation: "pulse 2s infinite",
+  };
+  const fetchInteractions = () => {
     fetch(`/api/my_interaction_titles?logged_in_id=${loggedInUserId}`)
-    .then((response) => response.json())
-    .then((data) => {
-      setInteractions(data);
-    })
-    .catch((error) => {
-      console.error("Error fetching interactions:", error);
-      setMessage(`Error fetching interactions:${error}`);
-      setType("error");
-    });
-
-  }
+      .then((response) => response.json())
+      .then((data) => {
+        setInteractions(data);
+      })
+      .catch((error) => {
+        console.error("Error fetching interactions:", error);
+        setMessage(`Error fetching interactions:${error}`);
+        setType("error");
+      });
+  };
   useEffect(() => {
-    fetchInteractions()
+    fetchInteractions();
   }, [loggedInUserId]);
   useEffect(() => {
     if (shouldRefreshInteractions) {
@@ -48,7 +61,6 @@ const InteractionTitles = ({ loggedInUserId, shouldRefreshInteractions, resetRef
     });
   };
   // Function to upload the ZIP file
-
 
   const handleEditClick = (interaction, event) => {
     event.stopPropagation(); // Prevent triggering handleTitleClick
@@ -135,10 +147,18 @@ const InteractionTitles = ({ loggedInUserId, shouldRefreshInteractions, resetRef
           interactions.map((interaction, index) => (
             <li key={index} className="interaction-item">
               {!endedInteractions.includes(interaction.submission_id) && (
-                <div className="interaction-title-container">
+                <div
+                  className="interaction-title-container"
+                  key={index}
+                  style={{ position: "relative", display: "block", textAlign: "left" }}
+                >
+                  <svg width="50" height="50" style={svgStyle}>
+                    <polygon points="0,0 50,25 0,50" fill="blue" />
+                  </svg>
                   <Button
+                    style={buttonStyle}
                     variant="outline-info"
-                    className="btn-sm"
+                    className="btn-sm btn-pulse"
                     onClick={() => handleTitleClick(interaction)}
                   >
                     {interaction.title}

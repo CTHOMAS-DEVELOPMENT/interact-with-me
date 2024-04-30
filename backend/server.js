@@ -1,3 +1,4 @@
+//const { pipeline, env } = require('@xenova/transformers');
 const express = require("express");
 const { Pool, Client } = require("pg");
 const multer = require("multer");
@@ -20,8 +21,39 @@ const server = http.createServer(app);
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 //const { OpenAI } = require('openai');
-const { HfInference } = require("@huggingface/inference");
+//const { HfInference } = require("@huggingface/inference");
+class MyQaPipeline {
+  static task = "question-answering";
+  static model = "Xenova/distilbert-base-uncased-distilled-squad";
+  static instance = null;
+  static async getInstance(progress_callback = null) {
+    if (this.instance === null) {
+      // Dynamically import the Transformers.js library
+      let { pipeline, env } = await import("@xenova/transformers");
+      this.instance = pipeline(this.task, this.model, { progress_callback });
+    }
+    return this.instance;
+  }
+}
+class MyClassificationPipeline {
+  static task = "text-classification";
+  static model = "Xenova/distilbert-base-uncased-finetuned-sst-2-english";
+  static instance = null;
 
+  static async getInstance(progress_callback = null) {
+    if (this.instance === null) {
+      // Dynamically import the Transformers.js library
+      let { pipeline, env } = await import("@xenova/transformers");
+
+      // NOTE: Uncomment this to change the cache directory
+      // env.cacheDir = './.cache';
+
+      this.instance = pipeline(this.task, this.model, { progress_callback });
+    }
+
+    return this.instance;
+  }
+}
 function loadEnvVariables() {
   // Adjust if your .env file is located elsewhere. Using __dirname ensures it looks in the same directory as your server.js file.
   const envPath = path.join(__dirname, ".env");
@@ -53,6 +85,43 @@ const HF_TOKEN = process.env.HF_TOKEN;
 const JWT_SECRET = process.env.LG_TOKEN;
 const PORTFORAPPX = process.env.PORTFORAPP;
 console.log("PORTFORAPPX", PORTFORAPPX);
+//MyClassificationPipeline.getInstance();
+app.get("/api/myAdminTest/:question", async (req, res) => {
+  try {
+    // Get question from the URL parameters
+    const question = req.params.question;
+    const qa = await MyQaPipeline.getInstance();
+    const context = process.env.ADMIN_MESSAGE_3;
+    const response = await qa(question, context);
+    res.json({ answer: response });
+  } catch (error) {
+    console.error("Error processing request:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get("/api/myAdminAnswer/:question", async (req, res) => {
+  try {
+    // Get question from the URL parameters
+    const question = req.params.question;
+
+    // Get instance of MyClassificationPipeline
+    const classifier = await MyClassificationPipeline.getInstance();
+
+    // Define context
+    const context =
+      "First Day: a partridge in a pear tree Second Day: two turtle doves Third Day: three French hens Fourth Day: four calling birds Fifth Day: five gold rings Sixth Day: six geese a-laying Seventh Day: seven swans a-swimming Eighth Day: eight maids a-milking Ninth Day: nine ladies dancing Tenth Day: ten lords a-leaping Eleventh Day: 11 pipers piping Twelfth Day: 12 drummers drumming";
+    const response = await classifier(context);
+    // Call the classifier with the question and context
+    //const response = await classifier(question, context);
+
+    // Send the response back to the client
+    res.json({ answer: response });
+  } catch (error) {
+    console.error("Error processing request:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 app.use(
   cors({
@@ -68,19 +137,19 @@ const io = socketIo(server, {
   },
 });
 // Initialize the HfInference object with your API token
-const inference = new HfInference(HF_TOKEN);
+// const inference = new HfInference(HF_TOKEN);
 
-(async () => {
-  try {
-    // Perform a translation task
-    const response = await inference.translation({
-      model: "t5-base",
-      inputs: "My name is Wolfgang and I live in Amsterdam",
-    });
-  } catch (error) {
-    console.error("Error during model inference:", error);
-  }
-})();
+// (async () => {
+//   try {
+//     // Perform a translation task
+//     const response = await inference.translation({
+//       model: "t5-base",
+//       inputs: "My name is Wolfgang and I live in Amsterdam",
+//     });
+//   } catch (error) {
+//     console.error("Error during model inference:", error);
+//   }
+// })();
 // const openai = new OpenAI({
 //   apiKey: process.env.OPENAI_API_KEY,
 // });
@@ -157,11 +226,15 @@ const activeUsersPerSubmission = {};
 io.on("connection", (socket) => {
   socket.on("register", ({ userId, submissionIds }) => {
     if (!clientSubmissions[socket.id]) {
-        clientSubmissions[socket.id] = { userId, activeUsers: new Set(), submissionIds: new Set(submissionIds) };
+      clientSubmissions[socket.id] = {
+        userId,
+        activeUsers: new Set(),
+        submissionIds: new Set(submissionIds),
+      };
     }
     // Add user to active users
     clientSubmissions[socket.id].activeUsers.add(userId);
-});
+  });
 
   socket.on("enter screen", ({ userId, submissionId }) => {
     // Ensure this socket joins a room specific to the submissionId
@@ -235,68 +308,6 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage: storage });
-
-app.post("/api/generate-text", async (req, res) => {
-  const { prompt } = req.body; // Extract the prompt from the request body
-
-  // Function to remove the prompt from the generated text
-  function removePromptFromGeneratedText(prompt, generatedText) {
-    prompt = prompt.trim();
-    generatedText = generatedText.trim();
-
-    if (generatedText.startsWith(prompt)) {
-      // Remove the prompt and any leading/trailing whitespace or new lines
-      return generatedText.slice(prompt.length).trim();
-    }
-
-    // If the prompt is not at the start, return the generated text as is
-    return generatedText;
-  }
-
-  try {
-    const response = await inference.textGeneration({
-      model: "EleutherAI/gpt-neox-20b", // Adjust model as needed
-      inputs: prompt,
-      parameters: { max_length: 500 }, // Customize parameters as needed
-      options: { use_cache: false },
-    });
-
-    // Access the generated text directly
-    const generatedText = response.generated_text; // Adjust based on actual output
-
-    // Use the function to clean the generated text by removing the prompt
-    const cleanedText = removePromptFromGeneratedText(prompt, generatedText);
-
-    // Send the cleaned text back to the frontend
-    res.json({ generatedText: cleanedText });
-  } catch (error) {
-    console.error("Hugging Face API request failed:", error);
-    res.status(500).send("Failed to fetch response from Hugging Face");
-  }
-});
-app.post("/api/summarize-text", async (req, res) => {
-  const { text } = req.body;
-
-  try {
-    const response = await inference.summarization({
-      model: "facebook/bart-large-cnn",
-      inputs: text,
-      parameters: { max_length: 200, min_length: 50, do_sample: false },
-    });
-
-    let summaryText = response.summary_text.trim();
-
-    // Custom logic to ensure the summary isn't longer than the input
-    if (summaryText.length > text.length) {
-      summaryText = text; // Optionally, could also apply further trimming here
-    }
-
-    res.json({ summary: summaryText });
-  } catch (error) {
-    console.error("Failed to summarize text:", error);
-    res.status(500).send("Failed to fetch summary");
-  }
-});
 
 // Define a test route
 app.get("/test-db", async (req, res) => {
@@ -437,10 +448,6 @@ app.post("/api/register", async (req, res) => {
 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-    const hashedPasswordForAdmin = await bcrypt.hash(
-      "admin" + password,
-      saltRounds
-    );
 
     await client.query("BEGIN"); // Start transaction
 
@@ -457,21 +464,25 @@ app.post("/api/register", async (req, res) => {
         sex,
       ]
     );
-    const newUsersValue = userInsertResult.rows[0];
-    const newUserId = newUsersValue.id;
+    const newUserId = userInsertResult.rows[0].id;
+
+    // Determine the gender for the admin based on user preference
     const usersAdminSex = determinePartnerPreference(sexualOrientation, sex);
     const usersAdminProfilePicture =
       usersAdminSex === "Female"
         ? "backend\\imageUploaded\\file-WOMAN.png"
         : "backend\\imageUploaded\\file-MAN.png";
-
+    const usersVoiceFile =
+      usersAdminSex === "Female"
+        ? "introduction_woman.mp3"
+        : "introduction_man.mp3";
     // Insert user's dedicated admin
     const adminInsertResult = await client.query(
       "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat, sex, profile_picture) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
       [
         "Admin for " + username,
         username + "@system.com",
-        hashedPasswordForAdmin,
+        hashedPassword,
         hobby,
         sexualOrientation,
         floatsMyBoat,
@@ -480,16 +491,50 @@ app.post("/api/register", async (req, res) => {
       ]
     );
     const newAdminId = adminInsertResult.rows[0].id;
-
     // Insert the connection record
     await client.query(
       "INSERT INTO connections (user_one_id, user_two_id) VALUES ($1, $2)",
       [newUserId, newAdminId]
     );
+    // Insert welcome submission for the new user by the admin
+    const submissionInsertResult = await client.query(
+      "INSERT INTO user_submissions (user_id, title) VALUES ($1, $2) RETURNING id",
+      [newAdminId, `Welcome ${username}`]
+    );
+    const submissionId = submissionInsertResult.rows[0].id;
+
+    // Insert new admin and new user as participants in the submission
+    await client.query(
+      "INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2)",
+      [submissionId, newAdminId]
+    );
+
+    await client.query(
+      "INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2)",
+      [submissionId, newUserId]
+    );
+
+    // Insert dialog entries: an image and a welcome message
+    // await client.query(
+    //   "INSERT INTO submission_dialog (submission_id, posting_user_id, uploaded_path) VALUES ($1, $2, $3)",
+    //   [
+    //     submissionId,
+    //     newAdminId,
+    //     "\\uploaded-images\\thumb-connectedEngager.png",
+    //   ]
+    // );
+    // await client.query(
+    //   "INSERT INTO submission_dialog (submission_id, posting_user_id, uploaded_path) VALUES ($1, $2, $3)",
+    //   [submissionId, newAdminId, `\\uploaded-images\\${usersVoiceFile}`]
+    // );
+    await client.query(
+      "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content) VALUES ($1, $2, $3)",
+      [submissionId, newAdminId, process.env.ADMIN_MESSAGE_1]
+    );
 
     await client.query("COMMIT"); // Commit the transaction
 
-    res.json(newUsersValue);
+    res.json({ id: newUserId, username: username });
   } catch (error) {
     await client.query("ROLLBACK"); // Roll back the transaction on error
     console.error(error);
@@ -1090,23 +1135,23 @@ app.post(
 // Separate multer configuration for profile video uploads
 const videoUpload = multer({
   storage: multer.diskStorage({
-    destination: 'backend/imageUploaded', // Adjust directory path as needed
+    destination: "backend/imageUploaded", // Adjust directory path as needed
     filename: (req, file, cb) => {
-      cb(null, 'profile-video-' + Date.now() + path.extname(file.originalname));
-    }
+      cb(null, "profile-video-" + Date.now() + path.extname(file.originalname));
+    },
   }),
   fileFilter: (req, file, cb) => {
     // Accept videos only
     if (!file.originalname.match(/\.(mp4|mov)$/)) {
-      req.fileValidationError = 'Only video files are allowed!';
-      return cb(new Error('Only video files are allowed!'), false);
+      req.fileValidationError = "Only video files are allowed!";
+      return cb(new Error("Only video files are allowed!"), false);
     }
     cb(null, true);
   },
-  limits: { fileSize: 30 * 1024 * 1024 } // 30MB size limit
-}).single('profileVideo');
+  limits: { fileSize: 30 * 1024 * 1024 }, // 30MB size limit
+}).single("profileVideo");
 
-app.post('/api/users/:userId/upload-profile-video', (req, res) => {
+app.post("/api/users/:userId/upload-profile-video", (req, res) => {
   videoUpload(req, res, async (err) => {
     if (req.fileValidationError) {
       return res.status(400).send(req.fileValidationError);
@@ -1123,18 +1168,21 @@ app.post('/api/users/:userId/upload-profile-video', (req, res) => {
 
     try {
       const result = await pool.query(
-        'UPDATE users SET profile_video = $1 WHERE id = $2 RETURNING *',
+        "UPDATE users SET profile_video = $1 WHERE id = $2 RETURNING *",
         [profileVideoPath, userId]
       );
 
       if (result.rows.length > 0) {
-        res.status(200).json({ message: 'Profile video updated successfully.', user: result.rows[0] });
+        res.status(200).json({
+          message: "Profile video updated successfully.",
+          user: result.rows[0],
+        });
       } else {
-        res.status(404).send({ message: 'User not found.' });
+        res.status(404).send({ message: "User not found." });
       }
     } catch (error) {
-      console.error('Error updating profile video:', error);
-      res.status(500).send({ message: 'Error updating profile video.' });
+      console.error("Error updating profile video:", error);
+      res.status(500).send({ message: "Error updating profile video." });
     }
   });
 });
@@ -1778,7 +1826,7 @@ app.get("/api/users/:id", async (req, res) => {
 app.post("/api/users/:submissionId/text-entry", async (req, res) => {
   try {
     const submissionId = req.params.submissionId; // Extract submissionId from the URL parameters
-    const { userId, textContent } = req.body; // Extracting userId and textContent from the request body
+    const { userId, textContent, adminChatId } = req.body; // Extracting userId and textContent from the request body
 
     // Validate the received data
     if (!userId || !textContent) {
@@ -1811,6 +1859,10 @@ app.post("/api/users/:submissionId/text-entry", async (req, res) => {
       dialogEntry: insertResult.rows[0],
       submissionUpdate: updateResult.rows[0],
     });
+       // Check if it's an admin post and handle separately
+       if (adminChatId > 0) { // Assuming adminId is the identifier for posts meant for the chatbot
+        handleAdminResponse(textContent, submissionId, adminChatId);
+      }
   } catch (error) {
     // Rollback the transaction on error
     await pool.query("ROLLBACK");
@@ -1822,6 +1874,17 @@ app.post("/api/users/:submissionId/text-entry", async (req, res) => {
     });
   }
 });
+//"How do I connect with people?"
+async function handleAdminResponse(question, submissionId, adminChatId) {
+  const qa = await MyQaPipeline.getInstance();
+  const response = await qa(question, process.env.ADMIN_MESSAGE_2);
+
+  // Insert the admin response into the database
+    await pool.query(
+      "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content) VALUES ($1, $2, $3) RETURNING *",
+    [submissionId, adminChatId, response.answer]
+  );
+}
 
 app.post("/api/user_submissions", async (req, res) => {
   try {

@@ -4,13 +4,14 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import AlertMessage from "../system/AlertMessage";
 
 import { Rocket, RocketFill } from "react-bootstrap-icons";
-const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
+const TextEntry = ({ userId, submissionId, adminChatId, onPostSubmit }) => {
   const [textContent, setTextContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImageHovered, setIsImageHovered] = useState(false);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
   const handleSubmit = async (event) => {
+    console.log("adminChatId",adminChatId)
     event.preventDefault();
     if (!textContent.trim()) {
       setMessage("Please enter some text");
@@ -24,7 +25,7 @@ const TextEntry = ({ userId, submissionId, onPostSubmit }) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId, textContent }), // Including userId in the request body
+        body: JSON.stringify({ userId, textContent, adminChatId }), // Including userId in the request body
       });
 
       const data = await response.json();

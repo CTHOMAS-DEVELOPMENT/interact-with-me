@@ -8,10 +8,15 @@
 //https://github.com/nicknochnack/QnA-Web-App-with-React-and-Tensorflow.JS/blob/main/src/App.js
 
 //node-nlp
-
+//https://ai.google.dev/gemma/?utm_source=gdm&utm_medium=referral&utm_campaign=gemma_cta&utm_content=promo_banner#models
 //https://playground.com/create
 //https://www.remove.bg/upload
-//https://app.videogen.io/
+//https://voicemaker.in/
+//Super Lazy Coder
+//https://www.youtube.com/watch?v=NC_g3T4YXoM
+//https://huggingface.co/models?library=transformers.js&pipeline_tag=question-answering
+//https://huggingface.co/docs/transformers.js/en/index#supported-tasksmodels
+//https://app.haiper.ai/explore
 import { useEffect, useState } from 'react';
 import * as qna from '@tensorflow-models/qna';
 

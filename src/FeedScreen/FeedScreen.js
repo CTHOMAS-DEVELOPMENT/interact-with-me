@@ -25,7 +25,6 @@ const FeedScreen = () => {
   const [isImageHovered, setIsImageHovered] = useState(false);
   const [currentText, setCurrentText] = useState("");
   const [posts, setPosts] = useState([]);
-  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [dialogId, setDialogId] = useState(null);
   const [authError, setAuthError] = useState(false);
   const [userProfilePic, setUserProfilePic] = useState(""); // Initialize as empty string
@@ -36,6 +35,7 @@ const FeedScreen = () => {
   const [activeUsersList, setActiveUsersList] = useState([]);
   const [audioBlob, setAudioBlob] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [adminChat, setAdminChat] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
@@ -48,7 +48,6 @@ const FeedScreen = () => {
   const handleBackToMessagesClick = () => {
     navigate("/userlist", { state: { userId: userId } }); // Update for v6
   };
-  const [summary, setSummary] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   // In your FeedScreen component
   const [audioURL, setAudioURL] = useState(null);
@@ -87,25 +86,6 @@ const FeedScreen = () => {
     }
   };
 
-  const fetchSummary = (fullText) => {
-    setIsSummaryLoading(true); // Start loading
-    fetch("/api/summarize-text", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text: fullText }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        setSummary(data.summary);
-        setIsSummaryLoading(false); // Stop loading once the data is received
-      })
-      .catch((error) => {
-        console.error("Error fetching summary:", error);
-        setIsSummaryLoading(false); // Stop loading if there's an error
-      });
-  };
   const handleSearchChange = (event) => {
     setSearchQuery(event.target.value);
   };
@@ -200,20 +180,21 @@ const FeedScreen = () => {
     // If there's a new audio URL, play the audio
     if (audioURL && audioRef.current) {
       audioRef.current.src = audioURL; // Set the source for the audio player
-      audioRef.current.play() // Play the audio
+      audioRef.current
+        .play() // Play the audio
         .catch((error) => {
           console.error("Playback failed", error);
           // Handle failure to autoplay here, e.g., due to browser autoplay policies
         });
     }
   }, [audioURL]); // This effect should run every time the audioURL changes
-  
-  useEffect(() => {
-    if (posts.length > 0) {
-      // Combine all post content into one large block of text
-      const fullText = posts.map((post) => post.content).join(" ");
-      fetchSummary(fullText);
+
+   useEffect(() => {
+    if(posts.length)
+    {
+      setAdminChat(posts[posts.length - 1].username.substr(0,9)==="Admin for")
     }
+
   }, [posts]);
   useEffect(() => {
     if (userId) {
@@ -342,11 +323,19 @@ const FeedScreen = () => {
   };
 
   const checkUserIsInActiveList = (user_id, activeUsersList) => {
+    if(adminChat) return "active";
     return activeUsersList.includes(user_id) ? "active" : "";
   };
 
   const validateUploadedSoundFile = (path) => {
     return /\.(mp3|wav|ogg)$/i.test(path); // Case-insensitive check for common audio formats
+  };
+  const handleQuickTest2 = () => {
+    const question = "How do I connect with people?";
+    fetch(`/api/myAdminTest/${question}`)
+      .then((response) => response.json())
+      .then((data) => console.log("Response:", data))
+      .catch((error) => console.error("Error:", error));
   };
   return (
     <div>
@@ -405,6 +394,10 @@ const FeedScreen = () => {
           </div>
         </div>
         <h2 className="header-title font-style-4">{title}</h2>
+
+        <Button variant="outline-info" onClick={handleQuickTest2}>
+          Q A {adminChat?"Chat":"No Chat"}?
+        </Button>
       </div>
       {submissionId && (
         <>
@@ -455,7 +448,8 @@ const FeedScreen = () => {
               <TextEntry
                 userId={userId}
                 submissionId={submissionId}
-                onPostSubmit={fetchPosts}
+                adminChatId={adminChat?userId+1:0}
+                onPostSubmit={()=>{console.log("Fetching?")}}
               />
             </div>
             <div className="button-tower">
@@ -612,10 +606,7 @@ const FeedScreen = () => {
           )}
         </div>
       ))}
-      <h2>Summary</h2>
-      <div className="summary-container element-group-box">
-        {isSummaryLoading ? "Summary is coming, please wait..." : summary}
-      </div>{" "}
+
     </div>
   );
 };
