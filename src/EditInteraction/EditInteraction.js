@@ -108,9 +108,11 @@ const EditInteraction = () => {
         setType("error");
       });
   };
-
+//loggedInUserId
   const fetchAllUsers = () => {
-    fetch("/api/users")
+    console.log("loggedInUserId",loggedInUserId)
+    fetch(`/api/connected-users/${loggedInUserId}`)
+    //fetch(`/api/users`)
       .then((response) => response.json())
       .then((data) => {
         const filteredUsers = data.filter(

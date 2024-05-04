@@ -21,6 +21,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { checkAuthorization } from "../system/authService";
 const FeedScreen = () => {
   const [showUploader, setShowUploader] = useState(false);
+  const [showMessage, setShowMessage] = useState(true);
   const [showTextUpdate, setShowTextUpdate] = useState(false);
   const [isImageHovered, setIsImageHovered] = useState(false);
   const [currentText, setCurrentText] = useState("");
@@ -39,6 +40,8 @@ const FeedScreen = () => {
   const [uploadStatus, setUploadStatus] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+  const [loggedInUserName,setLoggedInUsername] = useState(""); 
+  const [notificationson,setNotificationsOn] = useState(false); 
   const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -128,6 +131,10 @@ const FeedScreen = () => {
           return response.json();
         })
         .then((data) => {
+          const loggedInUser = data.find((user) => user.id === userId);
+          if (loggedInUser) {
+            setLoggedInUsername(loggedInUser.username);
+          }
           // Filter out the current logged-in user from the list
           const filteredUsers = data.filter((user) => user.id !== userId);
           setAssociatedUsers(filteredUsers);
@@ -189,12 +196,16 @@ const FeedScreen = () => {
     }
   }, [audioURL]); // This effect should run every time the audioURL changes
 
-   useEffect(() => {
-    if(posts.length)
-    {
-      setAdminChat(posts[posts.length - 1].username.substr(0,9)==="Admin for")
+  useEffect(() => {
+    if (posts.length) {
+      if (associatedUsers[0].id - userId === 1) {
+        setAdminChat(true);
+      } else {
+        setAdminChat(
+          posts[posts.length - 1].username.substr(0, 9) === "Admin for"
+        );
+      }
     }
-
   }, [posts]);
   useEffect(() => {
     if (userId) {
@@ -276,9 +287,12 @@ const FeedScreen = () => {
   useEffect(() => {
     // Add the class to body
     document.body.classList.add("feed-displacement");
-
+    const timer = setTimeout(() => {
+      setShowMessage(false);
+    }, 2000);
     // Cleanup function to remove the class when the component unmounts
     return () => {
+      clearTimeout(timer);
       document.body.classList.remove("feed-displacement");
     };
   }, []);
@@ -290,6 +304,34 @@ const FeedScreen = () => {
       </div>
     );
   }
+  const postTypeForEmail = async (type) => {
+    if(!notificationson){ return; }
+    try {
+      const response = await fetch('/api/notify_offline_users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          type: type, // Assume this is captured somewhere in your component's state or props
+          title: title, // Same as above
+          loggedInUserName: loggedInUserName, // Same as above
+          associatedUsers: associatedUsers // Array of user objects
+        })
+      });
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+  
+      const result = await response.json();
+      console.log('Notification sent successfully:', result);
+    } catch (error) {
+      console.error('Error sending notification:', error);
+    }
+  };
+  
+
   // Update the uploadAudio function to take a Blob as an argument
   const uploadAudio = async (blob) => {
     if (!blob) {
@@ -309,8 +351,9 @@ const FeedScreen = () => {
         body: formData,
       });
       const data = await response.json();
-      //setUploadStatus("Upload successful!");
-      setMessage("Upload successful!");
+
+      postTypeForEmail("audio");
+      setMessage("Upload audio successful!");
       setType("info");
     } catch (error) {
       //console.error("Error uploading audio:", error);
@@ -323,23 +366,17 @@ const FeedScreen = () => {
   };
 
   const checkUserIsInActiveList = (user_id, activeUsersList) => {
-    if(adminChat) return "active";
+    if (adminChat) return "active";
     return activeUsersList.includes(user_id) ? "active" : "";
   };
 
   const validateUploadedSoundFile = (path) => {
     return /\.(mp3|wav|ogg)$/i.test(path); // Case-insensitive check for common audio formats
   };
-  const handleQuickTest2 = () => {
-    const question = "How do I connect with people?";
-    fetch(`/api/myAdminTest/${question}`)
-      .then((response) => response.json())
-      .then((data) => console.log("Response:", data))
-      .catch((error) => console.error("Error:", error));
-  };
+
   return (
     <div>
-      {" "}
+      {showMessage && <div className="message-box">FeedScreen</div>}{" "}
       {/* This wraps the entire screen */}
       <div className="header">
         <div className="header-top">
@@ -394,10 +431,6 @@ const FeedScreen = () => {
           </div>
         </div>
         <h2 className="header-title font-style-4">{title}</h2>
-
-        <Button variant="outline-info" onClick={handleQuickTest2}>
-          Q A {adminChat?"Chat":"No Chat"}?
-        </Button>
       </div>
       {submissionId && (
         <>
@@ -429,7 +462,11 @@ const FeedScreen = () => {
                   userId={userId}
                   submissionId={submissionId}
                   onPhotoSubmit={fetchPosts}
-                  onSaveSuccess={() => setShowUploader(false)}
+                  onSaveSuccess={() => {
+                    //Email
+                    setShowUploader(false);
+                    postTypeForEmail("picture");
+                  }}
                   dialogId={dialogId}
                 />
               </div>
@@ -448,8 +485,10 @@ const FeedScreen = () => {
               <TextEntry
                 userId={userId}
                 submissionId={submissionId}
-                adminChatId={adminChat?userId+1:0}
-                onPostSubmit={()=>{console.log("Fetching?")}}
+                adminChatId={adminChat ? userId + 1 : 0}
+                onPostSubmit={() => {
+                  postTypeForEmail("Text");
+                }}
               />
             </div>
             <div className="button-tower">
@@ -606,7 +645,6 @@ const FeedScreen = () => {
           )}
         </div>
       ))}
-
     </div>
   );
 };

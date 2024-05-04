@@ -20,6 +20,7 @@ const server = http.createServer(app);
 
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
+
 //const { OpenAI } = require('openai');
 //const { HfInference } = require("@huggingface/inference");
 class MyQaPipeline {
@@ -86,19 +87,7 @@ const JWT_SECRET = process.env.LG_TOKEN;
 const PORTFORAPPX = process.env.PORTFORAPP;
 console.log("PORTFORAPPX", PORTFORAPPX);
 //MyClassificationPipeline.getInstance();
-app.get("/api/myAdminTest/:question", async (req, res) => {
-  try {
-    // Get question from the URL parameters
-    const question = req.params.question;
-    const qa = await MyQaPipeline.getInstance();
-    const context = process.env.ADMIN_MESSAGE_3;
-    const response = await qa(question, context);
-    res.json({ answer: response });
-  } catch (error) {
-    console.error("Error processing request:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
+
 
 app.get("/api/myAdminAnswer/:question", async (req, res) => {
   try {
@@ -856,6 +845,9 @@ app.get("/api/connectedX/:userId", async (req, res) => {
 app.get("/api/connected/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
+    //SELECT users.id, users.username, users.profile_picture, 
+    //users.profile_video, users.email, users.sexual_orientation, 
+    //users.hobbies, users.floats_my_boat, users.sex 
     const query = `
       (SELECT 
         null as connection_id, -- Placeholder for the current user
@@ -1000,6 +992,21 @@ app.get("/api/users", async (req, res) => {
     res.status(500).send({ message: "An error occurred." });
   }
 });
+app.get("/api/connected-users/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      "(SELECT users.id, users.username, users.profile_picture, users.profile_video, users.email, users.sexual_orientation, users.hobbies, users.floats_my_boat, users.sex, NULL as connection_id FROM users WHERE id = $1) UNION (SELECT U2.id, U2.username, U2.profile_picture, U2.profile_video, U2.email, U2.sexual_orientation, U2.hobbies, U2.floats_my_boat, U2.sex, connections.id as connection_id FROM users U1 JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id WHERE U1.id = $1 AND U2.id != $1) ORDER BY username",
+      [id] // Passing the id as a parameter to the SQL query
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "An error occurred." });
+  }
+});
+
 
 async function findUserById(userId) {
   try {
@@ -1923,7 +1930,7 @@ app.post("/api/user_submissions", async (req, res) => {
 // In your server code
 
 const crypto = require("crypto");
-
+//email ex
 app.post("/api/password_reset_request", async (req, res) => {
   const { email } = req.body;
 
@@ -2004,6 +2011,39 @@ app.post("/api/update_user_password", async (req, res) => {
   } catch (error) {
     console.error("Error resetting password:", error);
     res.status(500).json({ message: "Server error while updating password" });
+  }
+});
+app.post('/api/notify_offline_users', async (req, res) => {
+  const { type, title, loggedInUserName, associatedUsers } = req.body;
+
+  try {
+    for (const user of associatedUsers) {
+      const { rows } = await pool.query("SELECT email FROM users WHERE id = $1", [user.id]);
+      const email = rows[0].email; // Assuming there is always a valid email address returned
+
+      const mailOptions = {
+        from: RESET_EMAIL,
+        to: email,
+        subject: `${loggedInUserName} has posted to ${title}`,
+        text: `Hey ${user.username}, ${loggedInUserName} has added a ${type} post to the '${title}' interaction you are part of in the ConnectedEngaged application.\n Please login to catch up at : http://${HOST}:${PORTFORAPP}`,
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error("Error sending email to:", email, error);
+        } else {
+          console.log('Email sent:', info.response);
+        }
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Email notifications have been sent."
+    });
+  } catch (error) {
+    console.error("Error notifying users:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 

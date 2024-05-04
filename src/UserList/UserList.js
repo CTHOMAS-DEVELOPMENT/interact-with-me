@@ -25,8 +25,10 @@ const UsersList = () => {
   const [connectionRequests, setConnectionRequests] = useState(0);
   const [requestsFromOthers, setRequestsFromOthers] = useState(0);
   const [refreshNeeded, setRefreshNeeded] = useState(false);
+  const [showMessage, setShowMessage] = useState(true);
   const [shouldRefreshInteractions, setShouldRefreshInteractions] =
     useState(false);
+  const [activeTab, setActiveTab] = useState("Interactions");
   const navigate = useNavigate();
   const location = useLocation();
   const loggedInUserId = location.state ? location.state.userId : null;
@@ -52,6 +54,13 @@ const UsersList = () => {
         console.error("Error deleting connection:", error);
         // Optionally, update your UI to indicate the error to the user
       });
+  };
+  const handleInteractionsTabClick = () => {
+    setActiveTab("Interactions");
+  };
+
+  const handleCommunicationCentreTabClick = () => {
+    setActiveTab("Communication Centre");
   };
   const applyFilter = (filterCriteria) => {
     if (!user.id) {
@@ -91,10 +100,17 @@ const UsersList = () => {
   const handleToggleConnectionRequests = () => {
     setShowConnectionRequests(!showConnectionRequests); // Toggle the visibility
   };
-  
+
   const handleToggleRequestsFromOthers = () => {
     setShowRequestsFromOthers(!showRequestsFromOthers);
   };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowMessage(false);
+    }, 2000); // Set the message to disappear after 2000 milliseconds (2 seconds)
+
+    return () => clearTimeout(timer); // Clean up the timer
+  }, []);
   useEffect(() => {
     if (refreshNeeded) {
       // Perform your refresh actions here
@@ -305,6 +321,9 @@ const UsersList = () => {
   }
   return (
     <div>
+      {showMessage && (
+        <div className="message-box">After login landing page</div>
+      )}
       <div className="button-container">
         <Button
           variant="danger"
@@ -313,144 +332,181 @@ const UsersList = () => {
         >
           Logout {user ? user.username : ""}?
         </Button>
-        <Button
-          variant="outline-info"
-          onClick={() => handleUpdateProfileClick(user.id)}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "20px",
+          }}
         >
-          Profile
+        <Button
+          variant={activeTab === "Interactions" ? "info" : "outline-info"}
+          onClick={handleInteractionsTabClick}
+        >
+          Interactions
         </Button>
-        <h2>Communication Centre</h2>
-        {showFilter && (
-          <Modal show={showFilter} onHide={toggleFilter} centered>
-            <Modal.Header closeButton>
-              <Modal.Title>Update Connections</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <FilterUsers applyFilter={applyFilter} />
-            </Modal.Body>
-          </Modal>
-        )}
-      </div>
-      <div className="users-list-container">
-        <ul className="no-bullet">
-          {users.map((user) => (
-            <li key={user.id} className="user-item">
-              <div className="user-info-container">
-                <span className="user-name">{user.username}</span>
-                <div className="system-small-button-wrapper">
-                  <Button
-                    variant="danger"
-                    className="btn-sm"
-                    onClick={() => deleteContactToBeDeleted(user.connection_id)}
-                    onMouseEnter={() =>
-                      setHoveredContactToBeDeleted(user.connection_id)
-                    }
-                    onMouseLeave={() => setHoveredContactToBeDeleted(null)}
-                  >
-                    {hoveredContactToBeDeleted === user.connection_id ? (
-                      <TrashFill size={25} />
-                    ) : (
-                      <Trash size={25} />
-                    )}
-                  </Button>
-                  <input
-                    type="checkbox"
-                    onChange={() => handleCheckboxChange(user.id)}
-                    checked={selectedUserIds.has(user.id)}
-                    className="user-checkbox"
-                  />
-                </div>
-              </div>
-              <div className="thumb-profile-viewer">
-                <ThumbProfileViewer userId={user.id} />
-              </div>
+        <Button
+          variant={
+            activeTab === "Communication Centre" ? "info" : "outline-info"
+          }
+          onClick={handleCommunicationCentreTabClick}
+        >
+          Communication Centre
+        </Button>
+          <Button
+            variant="outline-info"
+            onClick={() => handleUpdateProfileClick(user.id)}
+          >
+            Profile
+          </Button>
+        </div>
+        {activeTab === "Communication Centre" && (
+          <div className="section-container">
+            <div>
+              <h2>Communication Centre</h2>
+              {showFilter && (
+                <Modal show={showFilter} onHide={toggleFilter} centered>
+                  <Modal.Header closeButton>
+                    <Modal.Title>Update Connections</Modal.Title>
+                  </Modal.Header>
+                  <Modal.Body>
+                    <FilterUsers applyFilter={applyFilter} />
+                  </Modal.Body>
+                </Modal>
+              )}
+            </div>
+            <div className="users-list-container">
+              <ul className="no-bullet">
+                {users.map((user) => (
+                  <li key={user.id} className="user-item">
+                    <div className="user-info-container">
+                      <span className="user-name">{user.username}</span>
+                      <div className="system-small-button-wrapper">
+                        <Button
+                          variant="danger"
+                          className="btn-sm"
+                          onClick={() =>
+                            deleteContactToBeDeleted(user.connection_id)
+                          }
+                          onMouseEnter={() =>
+                            setHoveredContactToBeDeleted(user.connection_id)
+                          }
+                          onMouseLeave={() =>
+                            setHoveredContactToBeDeleted(null)
+                          }
+                        >
+                          {hoveredContactToBeDeleted === user.connection_id ? (
+                            <TrashFill size={25} />
+                          ) : (
+                            <Trash size={25} />
+                          )}
+                        </Button>
+                        <input
+                          type="checkbox"
+                          onChange={() => handleCheckboxChange(user.id)}
+                          checked={selectedUserIds.has(user.id)}
+                          className="user-checkbox"
+                        />
+                      </div>
+                    </div>
+                    <div className="thumb-profile-viewer">
+                      <ThumbProfileViewer userId={user.id} />
+                    </div>
 
+                    <Button
+                      variant="outline-info"
+                      className="btn-sm"
+                      onClick={() => handleProfileClick(user.id, user.username)}
+                    >
+                      View Profile
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              {selectedUserIds.size > 0 && (
+                <Button
+                  variant="outline-info"
+                  className="btn-sm new-interaction-btn"
+                  onClick={handleNewInteraction}
+                >
+                  {selectedUserIds.size === 1
+                    ? `Create new Submission with ${
+                        users.find((user) => selectedUserIds.has(user.id))
+                          .username
+                      }`
+                    : "Create new Submission with group members"}
+                </Button>
+              )}
+            </div>
+
+            <div className="button_tower">
               <Button
                 variant="outline-info"
                 className="btn-sm"
-                onClick={() => handleProfileClick(user.id, user.username)}
+                onClick={toggleFilter}
               >
-                View Profile
+                Update Your Connection Requests
               </Button>
-            </li>
-          ))}
-        </ul>
-        {selectedUserIds.size > 0 && (
-          <Button
-            variant="outline-info"
-            className="btn-sm new-interaction-btn"
-            onClick={handleNewInteraction}
-          >
-            {selectedUserIds.size === 1
-              ? `Create new Submission with ${
-                  users.find((user) => selectedUserIds.has(user.id)).username
-                }`
-              : "Create new Submission with group members"}
-          </Button>
+              <Button
+                variant="outline-info"
+                className="btn-sm"
+                onClick={handleToggleConnectionRequests} // Use this handler to toggle the visibility
+              >
+                {showConnectionRequests
+                  ? "Hide Your Connection Requests"
+                  : `Show Your Connection Requests (${connectionRequests})`}
+              </Button>
+              {showConnectionRequests && (
+                <ConnectionRequests
+                  userId={loggedInUserId}
+                  showConnectRequests={showConnectRequests}
+                />
+              )}
+              <Button
+                variant="outline-info"
+                className="btn-sm"
+                onClick={handleToggleRequestsFromOthers}
+              >
+                {showRequestsFromOthers
+                  ? "Hide Connection Requests from Others"
+                  : `Show Connection Requests from Others (${requestsFromOthers})`}
+              </Button>
+              {showRequestsFromOthers && (
+                <ConnectionRequested
+                  userId={loggedInUserId}
+                  onEnableSelectedConnections={enableSelectedConnections}
+                  showRequestsOfOthers={showRequestsOfOthers}
+                />
+              )}
+            </div>
+          </div>
         )}
       </div>
-
-      <div className="button_tower">
-        <Button
-          variant="outline-info"
-          className="btn-sm"
-          onClick={toggleFilter}
-        >
-          Update Your Connection Requests
-        </Button>
-        <Button
-          variant="outline-info"
-          className="btn-sm"
-          onClick={handleToggleConnectionRequests} // Use this handler to toggle the visibility
-        >
-          {showConnectionRequests
-            ? "Hide Your Connection Requests"
-            : `Show Your Connection Requests (${connectionRequests})`}
-        </Button>
-        {showConnectionRequests && (
-          <ConnectionRequests
-            userId={loggedInUserId}
-            showConnectRequests={showConnectRequests}
+      {activeTab === "Interactions" && (
+        <div className="section-container center-interaction-elements">
+          <h2>Interactions</h2>
+          <div>
+            <input
+              type="file"
+              id="fileInput"
+              style={{ display: "none" }} // Hide the file input, will be triggered by a button
+              onChange={handleFileSelect}
+              accept=".zip"
+            />
+            <Button
+              variant="outline-info"
+              onClick={() => document.getElementById("fileInput").click()}
+            >
+              Load Previously Saved Interaction
+            </Button>
+          </div>
+          <InteractionTitles
+            loggedInUserId={loggedInUserId}
+            shouldRefreshInteractions={shouldRefreshInteractions}
+            resetRefreshTrigger={() => setShouldRefreshInteractions(false)}
           />
-        )}
-        <Button
-          variant="outline-info"
-          className="btn-sm"
-          onClick={handleToggleRequestsFromOthers}
-        >
-          {showRequestsFromOthers
-            ? "Hide Connection Requests from Others"
-            : `Show Connection Requests from Others (${requestsFromOthers})`}
-        </Button>
-        {showRequestsFromOthers && (
-          <ConnectionRequested
-            userId={loggedInUserId}
-            onEnableSelectedConnections={enableSelectedConnections}
-            showRequestsOfOthers={showRequestsOfOthers}
-          />
-        )}
-      </div>
-      <h2>Interactions</h2>
-      <div>
-        <input
-          type="file"
-          id="fileInput"
-          style={{ display: "none" }} // Hide the file input, will be triggered by a button
-          onChange={handleFileSelect}
-          accept=".zip"
-        />
-        <Button
-          variant="outline-info"
-          onClick={() => document.getElementById("fileInput").click()}
-        >
-          Load Previously Saved Interaction
-        </Button>
-      </div>
-      <InteractionTitles
-        loggedInUserId={loggedInUserId}
-        shouldRefreshInteractions={shouldRefreshInteractions}
-        resetRefreshTrigger={() => setShouldRefreshInteractions(false)}
-      />
+        </div>
+      )}
     </div>
   );
 };
