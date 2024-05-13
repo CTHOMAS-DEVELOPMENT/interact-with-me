@@ -14,6 +14,7 @@ const InteractionTitles = ({
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
   const [endedInteractions, setEndedInteractions] = useState([]); // Track ended interactions
+  const [alertKey, setAlertKey] = useState(0);
   const navigate = useNavigate();
   const svgStyle = {
     position: "absolute",
@@ -35,6 +36,7 @@ const InteractionTitles = ({
         console.error("Error fetching interactions:", error);
         setMessage(`Error fetching interactions:${error}`);
         setType("error");
+        setAlertKey(prevKey => prevKey + 1);
       });
   };
   useEffect(() => {
@@ -121,6 +123,7 @@ const InteractionTitles = ({
         if (!response.ok) {
           setMessage(`Network response was not ok`);
           setType("error");
+          setAlertKey(prevKey => prevKey + 1);
           throw new Error("Network response was not ok");
         }
         return response.json();
@@ -128,6 +131,7 @@ const InteractionTitles = ({
       .then((data) => {
         setType("info");
         setMessage(`The interaction has been removed`);
+        setAlertKey(prevKey => prevKey + 1);
         setEndedInteractions((oldArray) => [
           ...oldArray,
           interaction.submission_id,
@@ -137,6 +141,7 @@ const InteractionTitles = ({
         console.error("Error ending interaction:", error);
         setMessage(`Error this interaction was not removed:${error}`);
         setType("error");
+        setAlertKey(prevKey => prevKey + 1);
       });
   };
 
@@ -150,7 +155,11 @@ const InteractionTitles = ({
                 <div
                   className="interaction-title-container"
                   key={index}
-                  style={{ position: "relative", display: "block", textAlign: "left" }}
+                  style={{
+                    position: "relative",
+                    display: "block",
+                    textAlign: "left",
+                  }}
                 >
                   <svg width="50" height="50" style={svgStyle}>
                     <polygon points="0,0 50,25 0,50" fill="blue" />
@@ -221,7 +230,7 @@ const InteractionTitles = ({
             </li>
           ))}
       </ul>
-      {message && <AlertMessage message={message} type={type} />}
+      {message && <AlertMessage key={alertKey} message={message} type={type} />}
     </div>
   );
 };

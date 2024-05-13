@@ -10,12 +10,13 @@ const TextEntry = ({ userId, submissionId, adminChatId, onPostSubmit }) => {
   const [isImageHovered, setIsImageHovered] = useState(false);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+  const [alertKey, setAlertKey] = useState(0);
   const handleSubmit = async (event) => {
-    console.log("adminChatId",adminChatId)
     event.preventDefault();
     if (!textContent.trim()) {
       setMessage("Please enter some text");
       setType("error");
+      setAlertKey(prevKey => prevKey + 1);
       return;
     }
     setIsSubmitting(true); // Set submitting state to true
@@ -64,7 +65,7 @@ const TextEntry = ({ userId, submissionId, adminChatId, onPostSubmit }) => {
           >
             {isImageHovered ? <RocketFill size={25} /> : <Rocket size={25} />}
           </Button>
-          {message && <AlertMessage message={message} type={type} />}
+          {message && <AlertMessage key={alertKey} message={message} type={type} />}
 
         </div>
       </form>

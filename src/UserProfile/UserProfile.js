@@ -79,7 +79,7 @@ const UserProfile = () => {
         Back to messages
       </Button>
       <div className="profile-container" style={{ textAlign: "center" }}>
-        <h2>{user.username}'s Profile</h2>
+        <h2 className="font-style-4">{user.username}'s Profile</h2>
         {user.profile_video && (
           <Button
             variant="outline-info"

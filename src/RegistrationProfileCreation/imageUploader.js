@@ -63,7 +63,7 @@ const ImageUploader = ({ userId, onUpload }) => {
 
   return (
     <div className="image-uploader">
-      <h2>Upload a Picture for Your Profile</h2>
+      <h2 className="font-style-4">Upload a Picture for Your Profile</h2>
       <form onSubmit={handleSubmit} className="upload-form">
         <input type="file" onChange={handleFileChange} className="file-input" />
         <button type="submit" className="submit-button">

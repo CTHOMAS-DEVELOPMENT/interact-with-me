@@ -12,13 +12,11 @@ import PasswordResetRequest from "./PasswordResetRequest/PasswordResetRequest";
 import PasswordReset from "./PasswordReset/PasswordReset"; // Import the component
 import UpdateProfile from "./UpdateProfile/UpdateProfile";
 import TextGenerator from "./OpenAI/TextGenerator";
-import { ActiveUsersProvider } from "./UsersContext/ActiveUsersContext";
 import SummaryGenerator from "./OpenAI/SummaryGenerator";
 import QAndA from "./OpenAI/TensorFlow";
 function App() {
   return (
     <Router>
-      <ActiveUsersProvider>
         <div className="App">
           <Routes>
             <Route path="/password-reset" element={<PasswordReset />} />
@@ -40,7 +38,6 @@ function App() {
             <Route path="/qanda" element={<QAndA />} />
           </Routes>
         </div>
-      </ActiveUsersProvider>
     </Router>
   );
 }

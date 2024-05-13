@@ -13,6 +13,7 @@ const EditInteraction = () => {
   const [authError, setAuthError] = useState(false);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+  const [alertKey, setAlertKey] = useState(0);
   const [title, setTitle] = useState("");
   const [users, setUsers] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
@@ -106,6 +107,7 @@ const EditInteraction = () => {
         console.error("Error fetching interaction details:", error);
         setMessage("Error fetching interaction details");
         setType("error");
+        setAlertKey(prevKey => prevKey + 1)
       });
   };
 //loggedInUserId
@@ -125,6 +127,7 @@ const EditInteraction = () => {
         console.error("Error fetching users:", error);
         setMessage("Error fetching users");
         setType("error");
+        setAlertKey(prevKey => prevKey + 1)
       });
   };
 
@@ -162,6 +165,7 @@ const EditInteraction = () => {
   const handleUpdateGroupClick = () => {
     setMessage("");
     setType("info");
+    setAlertKey(prevKey => prevKey + 1)
     const payload = {
       submissionId: submissionId,
       userIds: Array.from(selectedUserIds),
@@ -180,15 +184,18 @@ const EditInteraction = () => {
         } else {
           setMessage("Failed to update the group");
           setType("error");
+          setAlertKey(prevKey => prevKey + 1)
           throw new Error("Failed to update the group");
         }
       })
       .then((data) => {
         setMessage("Group updated successfully");
+        setAlertKey(prevKey => prevKey + 1)
       })
       .catch((error) => {
         setMessage("Group updated successfully");
         setType("error");
+        setAlertKey(prevKey => prevKey + 1)
       });
   };
 
@@ -246,12 +253,7 @@ const EditInteraction = () => {
     return <div>Unauthorized. Please log in.</div>;
   }
 
-  // Render the component
-  // currentUsers = showSelectedOnly
-  //   ? users.filter((user) => selectedUserIds.has(user.id))
-  //   : users.slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage);
-
-  return (
+ return (
     <div>
       <Button
         variant="outline-info"
@@ -262,7 +264,7 @@ const EditInteraction = () => {
       </Button>{" "}
       <div className="centre-container">
         <div className="edit-interaction-container">
-          <h2>{title}</h2>
+          <h2 className="font-style-4">{title}</h2>
           <div
             className="dropdown-container"
             style={{
@@ -402,7 +404,7 @@ const EditInteraction = () => {
               ))}
             </div>
           )}
-          {message && <AlertMessage message={message} type={type} />}
+          {message && <AlertMessage key={alertKey} message={message} type={type} />}
           {isChanged && (
             <Button
               variant="outline-info"

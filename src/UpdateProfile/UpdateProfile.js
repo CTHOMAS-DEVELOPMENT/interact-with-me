@@ -33,7 +33,7 @@ const UpdateProfile = () => {
 
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
-
+  const [alertKey, setAlertKey] = useState(0);
 
   useEffect(() => {
     if (userId) {
@@ -81,6 +81,7 @@ const UpdateProfile = () => {
         console.error("Error fetching user data:", error);
         setMessage("Failed to load user data");
         setType("error");
+        setAlertKey(prevKey => prevKey + 1); 
       });
   };
 
@@ -98,6 +99,7 @@ const UpdateProfile = () => {
     if (validationErrors[name]) {
       setMessage(validationErrors[name]);
       setType("error");
+      setAlertKey(prevKey => prevKey + 1); 
     }
   };
 
@@ -107,7 +109,7 @@ const UpdateProfile = () => {
     // Reset the message and type to ensure the component re-renders
     setMessage("");
     setType("info");
-
+    setAlertKey(prevKey => prevKey + 1); 
     // Use a brief timeout to ensure the reset happens before setting the new message
 
     const validationErrors = validateUser(formData, true);
@@ -122,11 +124,13 @@ const UpdateProfile = () => {
         .then((data) => {
           setMessage("Profile updated successfully");
           setType("success");
+          setAlertKey(prevKey => prevKey + 1); 
         })
         .catch((error) => {
           console.error("Update profile error:", error);
           setMessage("Profile update failed");
           setType("error");
+          setAlertKey(prevKey => prevKey + 1); 
         });
     } else {
       // Set the first validation error message
@@ -135,6 +139,7 @@ const UpdateProfile = () => {
       setTimeout(() => {
         setMessage(validationErrors[firstErrorKey]);
         setType("error");
+        setAlertKey(prevKey => prevKey + 1); 
       }, 0);
     }
   };
@@ -151,7 +156,7 @@ const UpdateProfile = () => {
         Back to messages
       </Button>
 
-      <h2>Update Profile</h2>
+      <h2 className="font-style-4">Update Profile</h2>
       <div className="button-group">
         <ViewImage userId={userId} profileVideo={profileVideo} profileImage={profileImage}/>
       </div>
@@ -254,7 +259,7 @@ const UpdateProfile = () => {
             </select>
           </div>
         </div>
-        {message && <AlertMessage message={message} type={type} />}
+        {message && <AlertMessage key={alertKey} message={message} type={type} />}
         <Button variant="outline-info" className="btn-sm" type="submit">
           Update Profile
         </Button>

@@ -1,20 +1,29 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ImageUploader from "./imageUploader";
+import FloatsMyBoat from "./FloatsMyBoat";
+import Orientation from "./Orientation"; // Make sure to import the Orientation component
+import Gender from "./Gender.js"; // Make sure to import the Orientation component
+import Hobbies from "./Hobbies.js";
 import AlertMessage from "../system/AlertMessage";
 import validateUser from "../system/userValidation.js";
 import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+
 const RegistrationForm = () => {
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+  const [alertKey, setAlertKey] = useState(0);
+  const [showFloatsMyBoat, setShowFloatsMyBoat] = useState(false);
+  const [selectedCarousel, setSelectedCarousel] = useState(null);
+  const [showOrientation, setShowOrientation] = useState(false);
+  const [selectedOrientation, setSelectedOrientation] = useState(null);
+  const [showGender, setShowGender] = useState(false);
+  const [selectedGender, setSelectedGender] = useState(null);
+  const [showHobbies, setShowHobbies] = useState(false);
+  const [selectedHobby, setSelectedHobby] = useState(null);
   const navigate = useNavigate();
   const hobbyOptions = process.env.REACT_APP_HOBBY_TYPE.split(",");
-  const sexualOrientationOptions =
-    process.env.REACT_APP_SEXUAL_ORIENTATION_TYPE.split(",");
-  const floatsMyBoatOptions =
-    process.env.REACT_APP_FLOATS_MY_BOAT_TYPE.split("|");
-
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -23,6 +32,7 @@ const RegistrationForm = () => {
     sexualOrientation: "",
     floatsMyBoat: "",
     sex: "",
+    aboutYou: "",
   });
 
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
@@ -60,18 +70,77 @@ const RegistrationForm = () => {
         }
         return validationErrors[name];
       });
+      setAlertKey((prevKey) => prevKey + 1);
       setType("error");
     } else {
       // Clear the message if the field passes validation on blur
       // Adding a functional update here as well for consistency
       setMessage((prevMessage) => (prevMessage ? "" : "\u200B")); // Toggle to force re-render
       setType("info");
+      setAlertKey((prevKey) => prevKey + 1);
     }
   };
+  const version1Orientations = ["Heterosexual", "Lesbian", "Homosexual"];
+  const version1Gender = ["Female", "Male", "Other", "Other"];
+  const version1Hobbies = [
+    "Arts",
+    "Collecting",
+    "Cooking",
+    "Crafting",
+    "Dance",
+    "Education",
+    "Fitness",
+    "Gaming",
+    "Gardening",
+    "Meditation",
+    "Music",
+    "Other",
+    "Photography",
+    "Reading",
+    "Sports",
+    "Technology",
+    "The Unknown",
+    "Travel",
+    "Volunteering",
+    "Writing",
+  ];
+  const handleCarouselSelection = (index) => {
+    setSelectedCarousel(index);
+    const version1Keys = [
+      "Other (Not Listed)",
+      "Nourish or be nourished",
+      "Take orders or give them",
+      "Nourish or be nourished",
+    ];
 
+    setFormData((prevFormData) => ({
+      ...prevFormData,
+      floatsMyBoat: version1Keys[index],
+    }));
+  };
+  const handleOrientationSelection = (index) => {
+    setSelectedOrientation(index);
+    setFormData((prevFormData) => ({
+      ...prevFormData,
+      sexualOrientation: version1Orientations[index],
+    }));
+  };
+  const handleGenderSelection = (index) => {
+    setSelectedGender(index);
+    setFormData((prevFormData) => ({
+      ...prevFormData,
+      sex: version1Gender[index],
+    }));
+  };
+  const handleHobbySelection = (index) => {
+    setSelectedHobby(index);
+    setFormData(prevFormData => ({
+      ...prevFormData,
+      hobby: version1Hobbies[index] || "" // Make sure version1Hobbies is accessible here
+    }));
+  };
   const handleSubmit = (event) => {
     event.preventDefault();
-
     const validationErrors = validateUser(formData);
     if (Object.keys(validationErrors).length === 0) {
       // Proceed with form submission
@@ -88,28 +157,32 @@ const RegistrationForm = () => {
             setUserId(data.id);
             setMessage("Registration successful");
             setType("success");
+            setAlertKey((prevKey) => prevKey + 1);
             window.scrollTo(0, 0);
           } else if (data.message) {
             setMessage(data.message);
             setType("error");
+            setAlertKey((prevKey) => prevKey + 1);
           }
         })
         .catch((error) => {
           console.error("Registration error:", error);
           setMessage("Registration failed");
           setType("error");
+          setAlertKey((prevKey) => prevKey + 1);
         });
     } else {
       // Show the first validation error
       const firstErrorKey = Object.keys(validationErrors)[0];
       setMessage(validationErrors[firstErrorKey]);
       setType("error");
+      setAlertKey((prevKey) => prevKey + 1);
     }
   };
 
   return (
     <div>
-      <h2 className="fontHeader">User Registration</h2>
+      <h2 className="font-style-4">User Registration</h2>
       {userId && ( // Only render this section if userId exists
         <div className="dummy">
           <div className="button-container">
@@ -122,7 +195,6 @@ const RegistrationForm = () => {
                 ? `Login ${formData.username}`
                 : `Login ${formData.username} without profile image`}
             </Button>
-
           </div>
 
           {!uploadedImageUrl && (
@@ -181,80 +253,83 @@ const RegistrationForm = () => {
           />
         </div>
         <div>
-          <label htmlFor="sex">Sex</label>
-          <select
-            id="sex"
-            name="sex"
-            value={formData.sex}
-            onChange={handleInputChange}
-            required
+          <Button
+            variant="outline-info"
+            className="btn-sm"
+            onClick={() => setShowGender(!showGender)}
           >
-            <option value="">Select your sex</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-          </select>
+            {showGender ? "Hide Gender" : "Show Gender"}
+          </Button>
         </div>
+        {showGender && (
+          <Gender
+            onSelectGender={handleGenderSelection}
+            selected={selectedGender}
+          />
+        )}
         <div>
-          <label htmlFor="hobby">Favourite Hobby</label>
-          <select
-            id="hobby"
-            name="hobby"
-            value={formData.hobby}
-            onChange={handleInputChange}
-            required
-          >
-            <option value="">Select a hobby</option>{" "}
-            {/* Adds a default placeholder option */}
-            {hobbyOptions.map((hobby) => (
-              <option key={hobby} value={hobby}>
-                {hobby}
-              </option>
-            ))}
-          </select>
-          {/* Display errors if any */}
+        <Button
+    variant="outline-info"
+    className="btn-sm"
+    onClick={() => setShowHobbies(!showHobbies)}
+  >
+    {showHobbies ? "Hide Hobbies" : "Show Hobbies"}
+  </Button>
         </div>
+        {showHobbies && (
+  <Hobbies onSelectHobby={handleHobbySelection} selected={selectedHobby} />
+)}
         <div>
-          <label htmlFor="sexualOrientation">Sexual Orientation</label>
-          <select
-            id="sexualOrientation"
-            name="sexualOrientation"
-            value={formData.sexualOrientation}
-            onChange={handleInputChange}
-            required
+          <Button
+            variant="outline-info"
+            className="btn-sm"
+            onClick={() => setShowOrientation(!showOrientation)} // State to control visibility
           >
-            <option value="">Select your sexual orientation</option>
-            {sexualOrientationOptions.map((orientation) => (
-              <option key={orientation} value={orientation}>
-                {orientation}
-              </option>
-            ))}
-          </select>
+            {showOrientation ? "Hide Orientation" : "Show Orientation"}
+          </Button>
         </div>
+        {showOrientation && (
+          <Orientation
+            onSelectOrientation={handleOrientationSelection}
+            selected={selectedOrientation}
+          />
+        )}
         <div>
-          <label htmlFor="floatsMyBoat">Floats My Boat</label>
-          <select
-            id="floatsMyBoat"
-            name="floatsMyBoat"
-            value={formData.floatsMyBoat}
-            onChange={handleInputChange}
-            required
+          <Button
+            variant="outline-info"
+            className="btn-sm"
+            onClick={() => setShowFloatsMyBoat(!showFloatsMyBoat)}
           >
-            <option value="">Select what floats your boat</option>
-            {floatsMyBoatOptions.map((preference) => (
-              <option key={preference} value={preference}>
-                {preference}
-              </option>
-            ))}
-          </select>
+            {showFloatsMyBoat ? "Hide Floats My Boat" : "Show Floats My Boat"}
+          </Button>
         </div>
+
+        {showFloatsMyBoat && (
+          <FloatsMyBoat
+            onSelectCarousel={handleCarouselSelection}
+            selectedCarousel={selectedCarousel}
+          />
+        )}
+        <div>
+          <label htmlFor="aboutYou">About You:</label>
+          <textarea
+            id="aboutYou"
+            name="aboutYou"
+            value={formData.aboutYou}
+            onChange={handleInputChange}
+            onBlur={handleBlur}
+            required
+            style={{ width: "100%", height: "100px" }} // Adjust styling as needed
+          />
+        </div>
+
         {!userId && (
           <Button type="submit" variant="outline-info" className="btn-sm">
             Register
           </Button>
         )}
       </form>
-      {message && <AlertMessage message={message} type={type} />}
+      {message && <AlertMessage key={alertKey} message={message} type={type} />}
     </div>
   );
 };

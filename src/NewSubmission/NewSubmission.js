@@ -67,7 +67,7 @@ const NewSubmission = () => {
       >
         Back to messages
       </Button>{" "}
-      <h2>Create New Submission</h2>
+      <h2 className="font-style-4">Create New Submission</h2>
       <input
         type="text"
         value={title}

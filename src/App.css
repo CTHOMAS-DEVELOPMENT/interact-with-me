@@ -146,6 +146,7 @@
 
 .login-layout {
   display: flex;
+  flex-direction: column;
 }
 .image-uploader {
   font-family: "Quicksand", sans-serif;
@@ -197,7 +198,9 @@
   /* Style for the form container */
   margin: 0 20px; /* Adjust margin as needed */
 }
-
+.consent_group {
+  margin: 50px 0;
+}
 .image-panel {
   /* Style for image containers */
   flex: 1;
@@ -525,6 +528,7 @@ input {
     transform: translateY(-10px);
   }
 }
+
 .section-container {
   border: 2px solid #0dcaf0; /* Bootstrap's 'info' color */
   border-radius: 0.25rem; /* Match Bootstrap's border-radius */

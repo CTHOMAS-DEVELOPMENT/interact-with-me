@@ -16,6 +16,10 @@ import {
   TrashFill,
   MicFill,
   MicMuteFill,
+  EnvelopePlus,
+  EnvelopeSlash,
+  EnvelopePlusFill,
+  EnvelopeSlashFill,
 } from "react-bootstrap-icons";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { checkAuthorization } from "../system/authService";
@@ -40,8 +44,10 @@ const FeedScreen = () => {
   const [uploadStatus, setUploadStatus] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
-  const [loggedInUserName,setLoggedInUsername] = useState(""); 
-  const [notificationson,setNotificationsOn] = useState(false); 
+  const [loggedInUserName, setLoggedInUsername] = useState("");
+  const [notificationson, setNotificationsOn] = useState(false);//overide default
+  const [hovering, setHovering] = useState(false);
+  const [alertKey, setAlertKey] = useState(0);
   const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -82,7 +88,9 @@ const FeedScreen = () => {
       })
       .catch((error) => console.error("Failed to start recording:", error));
   };
-
+  const toggleNotifications = () => {
+    setNotificationsOn(!notificationson);
+  };
   const handleStopRecording = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
@@ -131,6 +139,22 @@ const FeedScreen = () => {
           return response.json();
         })
         .then((data) => {
+          //This determines number of users and traps wheather this is admin interaction
+          /**
+           {
+    "id": 119,
+    "username": "Admin for PoopyPoops",
+    "title": "ADMIN_MESSAGE_3",
+    "profile_picture": "backend\\imageUploaded\\file-MAN.png"
+}
+           */
+          
+          if(data.length===2 && data[1].id - data[0].id===1 && data[1].username===`Admin for ${data[0].username}`)
+          {
+            setAdminChat(true);
+          }
+          
+          console.log("admin interaction",data)
           const loggedInUser = data.find((user) => user.id === userId);
           if (loggedInUser) {
             setLoggedInUsername(loggedInUser.username);
@@ -196,17 +220,17 @@ const FeedScreen = () => {
     }
   }, [audioURL]); // This effect should run every time the audioURL changes
 
-  useEffect(() => {
-    if (posts.length) {
-      if (associatedUsers[0].id - userId === 1) {
-        setAdminChat(true);
-      } else {
-        setAdminChat(
-          posts[posts.length - 1].username.substr(0, 9) === "Admin for"
-        );
-      }
-    }
-  }, [posts]);
+  // useEffect(() => {
+  //   if (posts.length) {
+  //     if (associatedUsers[0].id - userId === 1) {
+  //       setAdminChat(true);
+  //     } else {
+  //       setAdminChat(
+  //         posts[posts.length - 1].username.substr(0, 9) === "Admin for"
+  //       );
+  //     }
+  //   }
+  // }, [posts]);
   useEffect(() => {
     if (userId) {
       fetch(`/api/users/${userId}/profile-picture`)
@@ -305,32 +329,33 @@ const FeedScreen = () => {
     );
   }
   const postTypeForEmail = async (type) => {
-    if(!notificationson){ return; }
+    if (!notificationson) {
+      return;
+    }
     try {
-      const response = await fetch('/api/notify_offline_users', {
-        method: 'POST',
+      const response = await fetch("/api/notify_offline_users", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           type: type, // Assume this is captured somewhere in your component's state or props
           title: title, // Same as above
           loggedInUserName: loggedInUserName, // Same as above
-          associatedUsers: associatedUsers // Array of user objects
-        })
+          associatedUsers: associatedUsers, // Array of user objects
+        }),
       });
-  
+
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
-  
+
       const result = await response.json();
-      console.log('Notification sent successfully:', result);
+      console.log("Notification sent successfully:", result);
     } catch (error) {
-      console.error('Error sending notification:', error);
+      console.error("Error sending notification:", error);
     }
   };
-  
 
   // Update the uploadAudio function to take a Blob as an argument
   const uploadAudio = async (blob) => {
@@ -355,10 +380,12 @@ const FeedScreen = () => {
       postTypeForEmail("audio");
       setMessage("Upload audio successful!");
       setType("info");
+      setAlertKey(prevKey => prevKey + 1);
     } catch (error) {
       //console.error("Error uploading audio:", error);
       setMessage("Upload failed!");
       setType("error");
+      setAlertKey(prevKey => prevKey + 1);
       //setUploadStatus("Upload failed!");
     } finally {
       setIsUploading(false);
@@ -411,7 +438,27 @@ const FeedScreen = () => {
               ))}
             </div>
           </div>
+
           <div className="search-container">
+          <Button
+              variant="outline-info"
+              onMouseEnter={() => setHovering(true)}
+              onMouseLeave={() => setHovering(false)}
+              onClick={toggleNotifications}
+              className="btn-icon"
+            >
+              {notificationson ? (
+                hovering ? (
+                  <EnvelopeSlashFill size={25} />
+                ) : (
+                  <EnvelopeSlash size={25} />
+                )
+              ) : hovering ? (
+                <EnvelopePlusFill size={25} />
+              ) : (
+                <EnvelopePlus size={25} />
+              )}
+            </Button>
             <Button
               variant="outline-info" // This should match other buttons
               className="btn-icon" // Make sure it has the same classes
@@ -543,7 +590,7 @@ const FeedScreen = () => {
               </Button>
             </div>
           </div>
-          {message && <AlertMessage message={message} type={type} />}
+          {message && <AlertMessage key={alertKey} message={message} type={type} />}
         </>
       )}
       {/* List of combined posts*/}

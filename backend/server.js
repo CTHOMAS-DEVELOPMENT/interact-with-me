@@ -11,9 +11,6 @@ const socketIo = require("socket.io");
 const cors = require("cors"); // Assuming you're using the 'cors' package for Express
 const JSZip = require("jszip");
 const util = require("util");
-const HOST = "localhost";
-const PORTFORAPP = "3000";
-const PORTNO = 5432;
 // Create a new express application
 const app = express();
 const server = http.createServer(app);
@@ -21,8 +18,6 @@ const server = http.createServer(app);
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 
-//const { OpenAI } = require('openai');
-//const { HfInference } = require("@huggingface/inference");
 class MyQaPipeline {
   static task = "question-answering";
   static model = "Xenova/distilbert-base-uncased-distilled-squad";
@@ -36,25 +31,7 @@ class MyQaPipeline {
     return this.instance;
   }
 }
-class MyClassificationPipeline {
-  static task = "text-classification";
-  static model = "Xenova/distilbert-base-uncased-finetuned-sst-2-english";
-  static instance = null;
 
-  static async getInstance(progress_callback = null) {
-    if (this.instance === null) {
-      // Dynamically import the Transformers.js library
-      let { pipeline, env } = await import("@xenova/transformers");
-
-      // NOTE: Uncomment this to change the cache directory
-      // env.cacheDir = './.cache';
-
-      this.instance = pipeline(this.task, this.model, { progress_callback });
-    }
-
-    return this.instance;
-  }
-}
 function loadEnvVariables() {
   // Adjust if your .env file is located elsewhere. Using __dirname ensures it looks in the same directory as your server.js file.
   const envPath = path.join(__dirname, ".env");
@@ -82,44 +59,16 @@ function loadEnvVariables() {
 loadEnvVariables();
 
 const RESET_EMAIL = process.env.RESET_EMAIL;
-const HF_TOKEN = process.env.HF_TOKEN;
 const JWT_SECRET = process.env.LG_TOKEN;
-const PORTFORAPPX = process.env.PORTFORAPP;
-console.log("PORTFORAPPX", PORTFORAPPX);
-//MyClassificationPipeline.getInstance();
-
-
-app.get("/api/myAdminAnswer/:question", async (req, res) => {
-  try {
-    // Get question from the URL parameters
-    const question = req.params.question;
-
-    // Get instance of MyClassificationPipeline
-    const classifier = await MyClassificationPipeline.getInstance();
-
-    // Define context
-    const context =
-      "First Day: a partridge in a pear tree Second Day: two turtle doves Third Day: three French hens Fourth Day: four calling birds Fifth Day: five gold rings Sixth Day: six geese a-laying Seventh Day: seven swans a-swimming Eighth Day: eight maids a-milking Ninth Day: nine ladies dancing Tenth Day: ten lords a-leaping Eleventh Day: 11 pipers piping Twelfth Day: 12 drummers drumming";
-    const response = await classifier(context);
-    // Call the classifier with the question and context
-    //const response = await classifier(question, context);
-
-    // Send the response back to the client
-    res.json({ answer: response });
-  } catch (error) {
-    console.error("Error processing request:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
 
 app.use(
   cors({
-    origin: `http://localhost:3000`, // Allow your frontend origin
+    origin: `http://${process.env.HOST}:${process.env.PORTFORAPP}`, // Allow your frontend origin
   })
 );
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000", // Allow your frontend origin
+    origin: `http://${process.env.HOST}:${process.env.PORTFORAPP}`, // Allow your frontend origin
     methods: ["GET", "POST"], // Specify which HTTP methods are allowed
     allowedHeaders: ["my-custom-header"], // Optional: specify headers
     credentials: true, // Optional: if you need credentials
@@ -162,10 +111,10 @@ app.use(
 // PostgreSQL connection configuration
 const pool = new Pool({
   user: "interactwithmeadmin",
-  host: HOST, // Adjust if your DB is hosted elsewhere
+  host: process.env.HOST, // Adjust if your DB is hosted elsewhere
   database: "interactwithme",
   password: "interactwithmeadmin",
-  port: PORTNO, // Default PostgreSQL port
+  port: process.env.PORTNO, // Default PostgreSQL port
 });
 // const pool = new Pool({
 //   user: "interactwithme_admin",
@@ -201,7 +150,7 @@ pool.connect((err, client, release) => {
   release();
 });
 
-const connectionString = `postgresql://interactwithmeadmin:interactwithmeadmin@${HOST}:${PORTNO}/interactwithme`;
+const connectionString = `postgresql://interactwithmeadmin:interactwithmeadmin@${process.env.HOST}:${process.env.PORTNO}/interactwithme`;
 
 const pgClient = new Client({ connectionString });
 pgClient.connect();
@@ -433,6 +382,7 @@ app.post("/api/register", async (req, res) => {
       sexualOrientation,
       floatsMyBoat,
       sex,
+      aboutYou
     } = req.body;
 
     const saltRounds = 10;
@@ -442,7 +392,7 @@ app.post("/api/register", async (req, res) => {
 
     // Insert the new User
     const userInsertResult = await client.query(
-      "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat, sex) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+      "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat, sex, about_you) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
       [
         username,
         email,
@@ -451,6 +401,7 @@ app.post("/api/register", async (req, res) => {
         sexualOrientation,
         floatsMyBoat,
         sex,
+        aboutYou
       ]
     );
     const newUserId = userInsertResult.rows[0].id;
@@ -1954,7 +1905,7 @@ app.post("/api/password_reset_request", async (req, res) => {
     ]);
 
     // Create reset URL
-    const resetUrl = `http://${HOST}:${PORTFORAPP}/password-reset?token=${resetToken}`;
+    const resetUrl = `http://${process.env.HOST}:${process.env.PORTFORAPP}/password-reset?token=${resetToken}`;
 
     // Send email
     const mailOptions = {
@@ -2025,7 +1976,7 @@ app.post('/api/notify_offline_users', async (req, res) => {
         from: RESET_EMAIL,
         to: email,
         subject: `${loggedInUserName} has posted to ${title}`,
-        text: `Hey ${user.username}, ${loggedInUserName} has added a ${type} post to the '${title}' interaction you are part of in the ConnectedEngaged application.\n Please login to catch up at : http://${HOST}:${PORTFORAPP}`,
+        text: `Hey ${user.username}, ${loggedInUserName} has added a ${type} post to the '${title}' interaction you are part of in the ConnectedEngaged application.\n Please login to catch up at : http://${process.env.HOST}:${process.env.PORTFORAPP}`,
       };
 
       transporter.sendMail(mailOptions, (error, info) => {
@@ -2048,7 +1999,7 @@ app.post('/api/notify_offline_users', async (req, res) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || process.env.PROXYPORT;
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

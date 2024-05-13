@@ -17,6 +17,8 @@ const ConnectionRequested = ({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+  
+const [alertKey, setAlertKey] = useState(0);
   const handleCheckboxChange = (requesterId, isChecked) => {
     setSelectedUserIds((prevSelectedUserIds) => {
       const updatedSelectedUserIds = new Set(prevSelectedUserIds);
@@ -46,12 +48,14 @@ const ConnectionRequested = ({
       .then(() => {
         setMessage("All connection requests deleted successfully");
         setType("success");
+        setAlertKey(prevKey => prevKey + 1);
         // Refresh the connection requested list
         fetchConnectionRequested();
       })
       .catch((error) => {
         setMessage("Error deleting connection requests: " + error);
         setType("error");
+        setAlertKey(prevKey => prevKey + 1);
       });
   };
 
@@ -72,12 +76,14 @@ const ConnectionRequested = ({
       .then(() => {
         setMessage("Connection request deleted successfully");
         setType("info");
+        setAlertKey(prevKey => prevKey + 1);
         // Refresh the connection requested list
         fetchConnectionRequested();
       })
       .catch((error) => {
         setMessage("Error deleting connection request:" + error);
         setType("error");
+        setAlertKey(prevKey => prevKey + 1);
         //setError(error.message);
       });
   };
@@ -115,7 +121,7 @@ const ConnectionRequested = ({
   return (
     <div>
       <div className="connection-requests-container">
-        <h2>Connection Requests to You</h2>
+        <h2 className="font-style-4">Connection Requests to You</h2>
         {connectionRequested.length > 0 && (
           <Button
             variant="danger"
@@ -188,7 +194,7 @@ const ConnectionRequested = ({
           </Button>
         )}
       </div>
-      {message && <AlertMessage message={message} type={type} />}
+      {message && <AlertMessage key={alertKey} message={message} type={type} />}
     </div>
   );
 };

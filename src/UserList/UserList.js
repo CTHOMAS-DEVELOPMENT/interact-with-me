@@ -5,6 +5,7 @@ import InteractionTitles from "../InteractionTitles/InteractionTitles";
 import ThumbProfileViewer from "./ThumbProfileViewer";
 import ConnectionRequests from "./ConnectionRequests";
 import ConnectionRequested from "./ConnectionRequested";
+import ScrollingHelpText from '../system/ScrollingHelpText';
 import FilterUsers from "./FilterUsers";
 import { Button, Modal } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -29,6 +30,9 @@ const UsersList = () => {
   const [shouldRefreshInteractions, setShouldRefreshInteractions] =
     useState(false);
   const [activeTab, setActiveTab] = useState("Interactions");
+  const helpMessage =
+    process.env.REACT_APP_COMMUNICATION_CENTRE_HELP ||
+    "No help message configured.";
   const navigate = useNavigate();
   const location = useLocation();
   const loggedInUserId = location.state ? location.state.userId : null;
@@ -104,6 +108,7 @@ const UsersList = () => {
   const handleToggleRequestsFromOthers = () => {
     setShowRequestsFromOthers(!showRequestsFromOthers);
   };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowMessage(false);
@@ -339,20 +344,20 @@ const UsersList = () => {
             marginBottom: "20px",
           }}
         >
-        <Button
-          variant={activeTab === "Interactions" ? "info" : "outline-info"}
-          onClick={handleInteractionsTabClick}
-        >
-          Interactions
-        </Button>
-        <Button
-          variant={
-            activeTab === "Communication Centre" ? "info" : "outline-info"
-          }
-          onClick={handleCommunicationCentreTabClick}
-        >
-          Communication Centre
-        </Button>
+          <Button
+            variant={activeTab === "Interactions" ? "info" : "outline-info"}
+            onClick={handleInteractionsTabClick}
+          >
+            Interactions
+          </Button>
+          <Button
+            variant={
+              activeTab === "Communication Centre" ? "info" : "outline-info"
+            }
+            onClick={handleCommunicationCentreTabClick}
+          >
+            Communication Centre
+          </Button>
           <Button
             variant="outline-info"
             onClick={() => handleUpdateProfileClick(user.id)}
@@ -363,7 +368,8 @@ const UsersList = () => {
         {activeTab === "Communication Centre" && (
           <div className="section-container">
             <div>
-              <h2>Communication Centre</h2>
+              <h2 className="font-style-4">Communication Centre</h2>
+              <ScrollingHelpText message={helpMessage} width="300px" />
               {showFilter && (
                 <Modal show={showFilter} onHide={toggleFilter} centered>
                   <Modal.Header closeButton>
@@ -484,7 +490,7 @@ const UsersList = () => {
       </div>
       {activeTab === "Interactions" && (
         <div className="section-container center-interaction-elements">
-          <h2>Interactions</h2>
+          <h2 className="font-style-4">Interactions</h2>
           <div>
             <input
               type="file"

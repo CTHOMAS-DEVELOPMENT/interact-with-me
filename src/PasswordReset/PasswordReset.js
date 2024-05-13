@@ -12,6 +12,7 @@ const PasswordReset = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+  const [alertKey, setAlertKey] = useState(0);
   const navigate = useNavigate();
   const backToLogin = () => {
     navigate("/"); // Update for v6
@@ -21,6 +22,7 @@ const PasswordReset = () => {
     if (password !== confirmPassword) {
       setMessage("Passwords do not match.");
       setType("warning");
+      setAlertKey(prevKey => prevKey + 1); 
       return;
     }
     fetch("/api/update_user_password", {
@@ -34,11 +36,13 @@ const PasswordReset = () => {
       .then((data) => {
         // Handle the response from the server
         setMessage(data.message);
+        setAlertKey(prevKey => prevKey + 1); 
       })
       .catch((error) => {
         console.error("Error:", error);
         setMessage(error);
         setType("error");
+        setAlertKey(prevKey => prevKey + 1); 
       });
   };
 
@@ -47,7 +51,7 @@ const PasswordReset = () => {
               <Button variant="danger" onClick={backToLogin} className="logout-button">
         Back to Login
       </Button>
-      <h2>Reset Your Password</h2>
+      <h2 className="font-style-4">Reset Your Password</h2>
       <div className="wrapper-container">
         <form onSubmit={handlePasswordReset}>
           <input
@@ -73,7 +77,7 @@ const PasswordReset = () => {
           </Button>
         </form>
       </div>
-      {message && <AlertMessage message={message} type={type} />}
+      {message && <AlertMessage key={alertKey} message={message} type={type} />}
     </div>
   );
 };

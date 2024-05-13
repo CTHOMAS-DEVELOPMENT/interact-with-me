@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ThumbProfileViewer from "./ThumbProfileViewer";
 import AlertMessage from "../system/AlertMessage";
-
 import { Button } from "react-bootstrap";
 import { Trash, TrashFill } from "react-bootstrap-icons";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -12,6 +11,7 @@ const ConnectionRequests = ({ userId, showConnectRequests }) => {
     useState(null);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
+  const [alertKey, setAlertKey] = useState(0);
   const [error, setError] = useState("");
   const deleteAllRequests = () => {
     // Ensure we have a userId before making the API call
@@ -35,12 +35,14 @@ const ConnectionRequests = ({ userId, showConnectRequests }) => {
         // Log the success message from the server
         setType("info");
         setMessage(data.message);
+        setAlertKey(prevKey => prevKey + 1); 
         // Refresh the list of connection requests
         fetchConnectionRequests();
       })
       .catch((error) => {
         setType("error");
         setMessage("Error deleting all requests:" + error);
+        setAlertKey(prevKey => prevKey + 1); 
       });
   };
 
@@ -60,13 +62,14 @@ const ConnectionRequests = ({ userId, showConnectRequests }) => {
       .then((data) => {
         setType("info");
         setMessage("Connection request successfully deleted:" + data);
+        setAlertKey(prevKey => prevKey + 1); 
         // Call fetchConnectionRequests to refresh the list
         fetchConnectionRequests();
       })
       .catch((err) => {
         setType("error");
         setMessage("Error:" + err);
-        //setError(err.message);
+        setAlertKey(prevKey => prevKey + 1); 
       });
   };
 
@@ -106,7 +109,7 @@ const ConnectionRequests = ({ userId, showConnectRequests }) => {
 
   return (
     <div className="connection-requests-container">
-      <h2>Connection Requests</h2>
+      <h2 className="font-style-4">Connection Requests</h2>
       {connectionRequests.length > 0 && (
         <Button
           variant="danger"
@@ -157,7 +160,7 @@ const ConnectionRequests = ({ userId, showConnectRequests }) => {
       ) : (
         <p>No connection requests found.</p>
       )}
-      {message && <AlertMessage message={message} type={type} />}
+      {message && <AlertMessage key={alertKey} message={message} type={type} />}
     </div>
   );
 };

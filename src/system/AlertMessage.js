@@ -4,6 +4,7 @@ const AlertMessage = ({ message, type }) => {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    setVisible(true); 
     const timer = setTimeout(() => {
       setVisible(false);
     }, 3000);

@@ -31,7 +31,8 @@ CREATE TABLE users (
     sexual_orientation sexual_orientation_type DEFAULT 'Undisclosed',
     hobbies hobby_type DEFAULT 'Other',
     floats_my_boat floats_my_boaty_type DEFAULT 'Other (Not Listed)',
-    sex sex_type DEFAULT 'Other'
+    sex sex_type DEFAULT 'Other',
+    about_you text
 );
 
 -- Create user_submissions table
