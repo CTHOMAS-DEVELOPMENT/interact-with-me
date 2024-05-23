@@ -156,6 +156,7 @@ const pgClient = new Client({ connectionString });
 pgClient.connect();
 
 pgClient.query("LISTEN new_post");
+pgClient.query("LISTEN connections_change");
 
 // Track clients and their interest in specific submission_ids
 const clientSubmissions = {}; // { socketId: { userId: Number, submissionIds: Set(Number) } }
@@ -494,6 +495,7 @@ app.put("/api/update_profile/:id", async (req, res) => {
     sexualOrientation,
     floatsMyBoat,
     sex,
+    aboutYou
   } = req.body;
 
   // Validation for password length if it's not empty
@@ -521,8 +523,9 @@ app.put("/api/update_profile/:id", async (req, res) => {
   hobbies = COALESCE($4, hobbies),
   sexual_orientation = COALESCE($5, sexual_orientation),
   floats_my_boat = COALESCE($6, floats_my_boat),
-  sex = COALESCE($7, sex)
-  WHERE id = $8
+  sex = COALESCE($7, sex),
+  about_you = COALESCE($8, about_you)
+  WHERE id = $9
   RETURNING *;
 `;
 
@@ -533,7 +536,8 @@ app.put("/api/update_profile/:id", async (req, res) => {
     hobby,
     sexualOrientation,
     floatsMyBoat,
-    sex, // Add the 'sex' to the values array
+    sex, 
+    aboutYou,
     id,
   ];
 
@@ -553,8 +557,7 @@ app.put("/api/update_profile/:id", async (req, res) => {
 app.post("/api/filter-users/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { username, sexualOrientation, hobbies, floatsMyBoat, sex } =
-      req.body;
+    const { username, sexualOrientation, hobbies, floatsMyBoat, sex, aboutYou } = req.body;
 
     // Initialize the query parts
     let queryConditions = [];
@@ -582,9 +585,13 @@ app.post("/api/filter-users/:userId", async (req, res) => {
       queryConditions.push(`sex = $${paramCounter++}`);
       queryParams.push(sex);
     }
+    if (aboutYou) {
+      queryConditions.push(`about_you ILIKE '%' || $${paramCounter++} || '%'`);
+      queryParams.push(aboutYou);
+    }
 
     let query = `
-      SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex 
+      SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex, about_you 
       FROM users 
       WHERE ${
         queryConditions.length > 0 ? queryConditions.join(" AND ") : "1=1"
@@ -593,14 +600,20 @@ app.post("/api/filter-users/:userId", async (req, res) => {
 
     // Fetch filtered users based on criteria
     const filteredUsers = await pool.query(query, queryParams);
-
+    // Delete existing connection requests for the user
+    const deleteQuery = `
+      DELETE FROM connection_requests WHERE requester_id = $1
+    `;
+    await pool.query(deleteQuery, [userId]);
     // Populate connection_requests for each filtered user
     if (filteredUsers.rows.length > 0) {
       const insertQuery = `
         INSERT INTO connection_requests (requester_id, requested_id, status)
         SELECT $1, id, 'pending' 
         FROM unnest($2::int[]) AS id
-        WHERE id != $1
+        WHERE id != $1 AND NOT EXISTS (
+          SELECT 1 FROM connection_requests WHERE requester_id = $1 AND requested_id = id
+        )
       `;
       await pool.query(insertQuery, [
         userId,
@@ -620,6 +633,7 @@ app.post("/api/filter-users/:userId", async (req, res) => {
       .send({ message: "An error occurred.", error: error.message });
   }
 });
+
 app.get("/api/connection-requests/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -627,7 +641,7 @@ app.get("/api/connection-requests/:userId", async (req, res) => {
     // SQL query to join connection_requests and users tables
     const query = `
       SELECT cr.id, cr.requester_id, cr.requested_id, cr.status, cr.created_at, cr.updated_at,
-             u.username, u.email, u.profile_picture, u.sexual_orientation, u.hobbies, u.floats_my_boat, u.sex
+             u.username, u.email, u.profile_picture, u.sexual_orientation, u.hobbies, u.floats_my_boat, u.sex, u.about_you
       FROM connection_requests cr
       JOIN users u ON cr.requested_id = u.id
       WHERE cr.requester_id = $1
@@ -661,7 +675,8 @@ app.get("/api/connection-requested/:userId", async (req, res) => {
       u.sexual_orientation, 
       u.hobbies, 
       u.floats_my_boat, 
-      u.sex
+      u.sex,
+      u.about_you
     FROM 
       connection_requests AS cr
     JOIN 
@@ -759,46 +774,10 @@ app.post("/api/delete-from-connection-requests/:id", async (req, res) => {
   }
 });
 
-app.get("/api/connectedX/:userId", async (req, res) => {
-  try {
-    // Extract the userId from the request's path parameters
-    const { userId } = req.params;
 
-    // Updated query to include both the current user and their associated users
-    const query = `
-      -- Select the current user
-      (SELECT id, username, email, sexual_orientation, hobbies, floats_my_boat, sex 
-       FROM users 
-       WHERE id = $1)
-
-      UNION
-
-      -- Select associated users
-      (SELECT U2.id, U2.username, U2.email, U2.sexual_orientation, U2.hobbies, U2.floats_my_boat, U2.sex 
-       FROM users U1
-       JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id
-       JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id
-       WHERE U1.id = $1 AND U2.id != $1
-       ORDER BY username);
-
-    `;
-
-    // Execute the query with the userId as a parameter
-    const result = await pool.query(query, [userId]);
-
-    // Send the result back to the client
-    res.json(result.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "An error occurred." });
-  }
-});
 app.get("/api/connected/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    //SELECT users.id, users.username, users.profile_picture, 
-    //users.profile_video, users.email, users.sexual_orientation, 
-    //users.hobbies, users.floats_my_boat, users.sex 
     const query = `
       (SELECT 
         null as connection_id, -- Placeholder for the current user
@@ -808,7 +787,8 @@ app.get("/api/connected/:userId", async (req, res) => {
         sexual_orientation, 
         hobbies, 
         floats_my_boat, 
-        sex 
+        sex,
+        about_you 
       FROM 
         users 
       WHERE 
@@ -824,7 +804,8 @@ app.get("/api/connected/:userId", async (req, res) => {
         U2.sexual_orientation, 
         U2.hobbies, 
         U2.floats_my_boat, 
-        U2.sex 
+        U2.sex,
+        U2.about_you
       FROM 
         users U1
         JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id
@@ -935,7 +916,7 @@ app.delete("/api/delete-connection/:id", async (req, res) => {
 app.get("/api/users", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, username, profile_picture, profile_video, email, sexual_orientation, hobbies, floats_my_boat, sex FROM users ORDER BY username"
+      "SELECT id, username, profile_picture, profile_video, email, sexual_orientation, hobbies, floats_my_boat, sex, about_you FROM users ORDER BY username"
     );
     res.json(result.rows);
   } catch (error) {
@@ -948,7 +929,7 @@ app.get("/api/connected-users/:id", async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(
-      "(SELECT users.id, users.username, users.profile_picture, users.profile_video, users.email, users.sexual_orientation, users.hobbies, users.floats_my_boat, users.sex, NULL as connection_id FROM users WHERE id = $1) UNION (SELECT U2.id, U2.username, U2.profile_picture, U2.profile_video, U2.email, U2.sexual_orientation, U2.hobbies, U2.floats_my_boat, U2.sex, connections.id as connection_id FROM users U1 JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id WHERE U1.id = $1 AND U2.id != $1) ORDER BY username",
+      "(SELECT users.id, users.username, users.profile_picture, users.profile_video, users.email, users.sexual_orientation, users.hobbies, users.floats_my_boat, users.sex, users.about_you, NULL as connection_id FROM users WHERE id = $1) UNION (SELECT U2.id, U2.username, U2.profile_picture, U2.profile_video, U2.email, U2.sexual_orientation, U2.hobbies, U2.floats_my_boat, U2.sex, U2.about_you, connections.id as connection_id FROM users U1 JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id WHERE U1.id = $1 AND U2.id != $1) ORDER BY username",
       [id] // Passing the id as a parameter to the SQL query
     );
     res.json(result.rows);
@@ -1590,15 +1571,16 @@ async function deleteExpiredInteractions() {
         WHERE (2 * 24 * 60 * 60 - EXTRACT(epoch FROM NOW() - lastuser_addition)) < 0
       )
     `);
-
+let pathType="";
     // Delete the images from the filesystem
     for (const row of imagesToDelete) {
-      if (typeof row.uploaded_path === "string") {
-        // Assuming the actual physical path doesn't need the "uploaded-images" segment.
-        const sanitizedPath = row.uploaded_path.replace(
-          "uploaded-images\\",
-          ""
-        );
+      pathType=typeof row.uploaded_path
+
+      if (pathType === "string" && pathType.trim() !== "") {
+
+        // Removing the 'uploaded-images' segment from the path
+        let sanitizedPath = row.uploaded_path.replace(/^.*[\\\/]uploaded-images[\\\/]/, '');
+
         const fullPath = path.join(__dirname, "imageUploaded", sanitizedPath);
 
         try {
@@ -1612,7 +1594,10 @@ async function deleteExpiredInteractions() {
           console.error(`Failed to delete file ${fullPath}: `, error);
         }
       } else {
-        console.log("Invalid path encountered, skipping deletion.");
+        if(pathType!=="object")
+          {
+            console.log("Invalid path encountered, skipping deletion.");
+          }
       }
     }
 
@@ -1640,6 +1625,7 @@ async function deleteExpiredInteractions() {
       DELETE FROM user_submissions
       WHERE (2 * 24 * 60 * 60 - EXTRACT(epoch FROM NOW() - lastuser_addition)) < 0
     `);
+
     // Commit the transaction
     await pool.query("COMMIT");
   } catch (error) {
@@ -1771,7 +1757,7 @@ app.get("/api/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      "SELECT id, username, email, profile_picture, profile_video, sexual_orientation, hobbies, floats_my_boat, sex FROM users WHERE id = $1",
+      "SELECT id, username, email, profile_picture, profile_video, sexual_orientation, hobbies, floats_my_boat, sex, about_you FROM users WHERE id = $1",
       [id] // Make sure to select the new 'sex' column here
     );
     res.json(result.rows[0]);

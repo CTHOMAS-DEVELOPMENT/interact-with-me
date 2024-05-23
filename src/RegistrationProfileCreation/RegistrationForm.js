@@ -5,6 +5,12 @@ import FloatsMyBoat from "./FloatsMyBoat";
 import Orientation from "./Orientation"; // Make sure to import the Orientation component
 import Gender from "./Gender.js"; // Make sure to import the Orientation component
 import Hobbies from "./Hobbies.js";
+import {
+  version1Orientations,
+  version1Gender,
+  version1Hobbies,
+  version1Keys,
+} from "./scopedCollections.js";
 import AlertMessage from "../system/AlertMessage";
 import validateUser from "../system/userValidation.js";
 import { Button } from "react-bootstrap";
@@ -23,7 +29,6 @@ const RegistrationForm = () => {
   const [showHobbies, setShowHobbies] = useState(false);
   const [selectedHobby, setSelectedHobby] = useState(null);
   const navigate = useNavigate();
-  const hobbyOptions = process.env.REACT_APP_HOBBY_TYPE.split(",");
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -80,38 +85,9 @@ const RegistrationForm = () => {
       setAlertKey((prevKey) => prevKey + 1);
     }
   };
-  const version1Orientations = ["Heterosexual", "Lesbian", "Homosexual"];
-  const version1Gender = ["Female", "Male", "Other", "Other"];
-  const version1Hobbies = [
-    "Arts",
-    "Collecting",
-    "Cooking",
-    "Crafting",
-    "Dance",
-    "Education",
-    "Fitness",
-    "Gaming",
-    "Gardening",
-    "Meditation",
-    "Music",
-    "Other",
-    "Photography",
-    "Reading",
-    "Sports",
-    "Technology",
-    "The Unknown",
-    "Travel",
-    "Volunteering",
-    "Writing",
-  ];
+
   const handleCarouselSelection = (index) => {
     setSelectedCarousel(index);
-    const version1Keys = [
-      "Other (Not Listed)",
-      "Nourish or be nourished",
-      "Take orders or give them",
-      "Nourish or be nourished",
-    ];
 
     setFormData((prevFormData) => ({
       ...prevFormData,
@@ -134,9 +110,9 @@ const RegistrationForm = () => {
   };
   const handleHobbySelection = (index) => {
     setSelectedHobby(index);
-    setFormData(prevFormData => ({
+    setFormData((prevFormData) => ({
       ...prevFormData,
-      hobby: version1Hobbies[index] || "" // Make sure version1Hobbies is accessible here
+      hobby: version1Hobbies[index] || "", // Make sure version1Hobbies is accessible here
     }));
   };
   const handleSubmit = (event) => {
@@ -252,77 +228,91 @@ const RegistrationForm = () => {
             required
           />
         </div>
-        <div>
-          <Button
-            variant="outline-info"
-            className="btn-sm"
-            onClick={() => setShowGender(!showGender)}
-          >
-            {showGender ? "Hide Gender" : "Show Gender"}
-          </Button>
-        </div>
-        {showGender && (
-          <Gender
-            onSelectGender={handleGenderSelection}
-            selected={selectedGender}
-          />
-        )}
-        <div>
-        <Button
-    variant="outline-info"
-    className="btn-sm"
-    onClick={() => setShowHobbies(!showHobbies)}
-  >
-    {showHobbies ? "Hide Hobbies" : "Show Hobbies"}
-  </Button>
-        </div>
-        {showHobbies && (
-  <Hobbies onSelectHobby={handleHobbySelection} selected={selectedHobby} />
-)}
-        <div>
-          <Button
-            variant="outline-info"
-            className="btn-sm"
-            onClick={() => setShowOrientation(!showOrientation)} // State to control visibility
-          >
-            {showOrientation ? "Hide Orientation" : "Show Orientation"}
-          </Button>
-        </div>
-        {showOrientation && (
-          <Orientation
-            onSelectOrientation={handleOrientationSelection}
-            selected={selectedOrientation}
-          />
-        )}
-        <div>
-          <Button
-            variant="outline-info"
-            className="btn-sm"
-            onClick={() => setShowFloatsMyBoat(!showFloatsMyBoat)}
-          >
-            {showFloatsMyBoat ? "Hide Floats My Boat" : "Show Floats My Boat"}
-          </Button>
-        </div>
+        <div className="rounded-rectangle-wrapper">
+          <h3 className="font-style-4">About You Survey</h3>
+          <div>
+            <Button
+              variant="outline-info"
+              className="btn-sm"
+              onClick={() => setShowGender(!showGender)}
+            >
+              {showGender
+                ? "Hide Most Like You"
+                : "Show Most Like You Selection"}
+            </Button>
+          </div>
+          {showGender && (
+            <Gender
+              onSelectGender={handleGenderSelection}
+              selected={selectedGender}
+            />
+          )}
+          <div>
+            <Button
+              variant="outline-info"
+              className="btn-sm"
+              onClick={() => setShowHobbies(!showHobbies)}
+            >
+              {showHobbies
+                ? "Hide Your Favourite Hobby"
+                : "Show Your Favourite Hobby Selection"}
+            </Button>
+          </div>
+          {showHobbies && (
+            <Hobbies
+              onSelectHobby={handleHobbySelection}
+              selected={selectedHobby}
+            />
+          )}
+          <div>
+            <Button
+              variant="outline-info"
+              className="btn-sm"
+              onClick={() => setShowOrientation(!showOrientation)} // State to control visibility
+            >
+              {showOrientation
+                ? "Hide Your Preferred Company"
+                : "Show Your Preferred Company Selection"}
+            </Button>
+          </div>
+          {showOrientation && (
+            <Orientation
+              onSelectOrientation={handleOrientationSelection}
+              selected={selectedOrientation}
+            />
+          )}
+          <div>
+            <Button
+              variant="outline-info"
+              className="btn-sm"
+              onClick={() => setShowFloatsMyBoat(!showFloatsMyBoat)}
+            >
+              {showFloatsMyBoat
+                ? "Hide Floats Your Boat"
+                : "Show Floats Your Boat Selection"}
+            </Button>
+          </div>
 
-        {showFloatsMyBoat && (
-          <FloatsMyBoat
-            onSelectCarousel={handleCarouselSelection}
-            selectedCarousel={selectedCarousel}
-          />
-        )}
-        <div>
-          <label htmlFor="aboutYou">About You:</label>
-          <textarea
-            id="aboutYou"
-            name="aboutYou"
-            value={formData.aboutYou}
-            onChange={handleInputChange}
-            onBlur={handleBlur}
-            required
-            style={{ width: "100%", height: "100px" }} // Adjust styling as needed
-          />
+          {showFloatsMyBoat && (
+            <FloatsMyBoat
+              onSelectCarousel={handleCarouselSelection}
+              selectedCarousel={selectedCarousel}
+            />
+          )}
+          <div>
+            <textarea
+              id="aboutYou"
+              className="about-you-textarea"
+              placeholder="I am looking for a long term relationship. Look out for my Connection Request from the Communication Centre."
+              name="aboutYou"
+              value={formData.aboutYou}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              required
+              style={{ width: "100%", height: "100px" }} // Adjust styling as needed
+            />
+          </div>
         </div>
-
         {!userId && (
           <Button type="submit" variant="outline-info" className="btn-sm">
             Register

@@ -5,9 +5,9 @@ import InteractionTitles from "../InteractionTitles/InteractionTitles";
 import ThumbProfileViewer from "./ThumbProfileViewer";
 import ConnectionRequests from "./ConnectionRequests";
 import ConnectionRequested from "./ConnectionRequested";
-import ScrollingHelpText from '../system/ScrollingHelpText';
+import ScrollingHelpText from "../system/ScrollingHelpText";
 import FilterUsers from "./FilterUsers";
-import { Button, Modal } from "react-bootstrap";
+import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { Trash, TrashFill } from "react-bootstrap-icons";
 import { checkAuthorization } from "../system/authService"; // Ensure the path is correct
@@ -15,6 +15,7 @@ const UsersList = () => {
   const [users, setUsers] = useState([]);
   const [user, setUser] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
+  const [selectedUsernames, setSelectedUsernames] = useState([]);
   const [authError, setAuthError] = useState(false); // State for authorization error
   const [showFilter, setShowFilter] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,7 +30,9 @@ const UsersList = () => {
   const [showMessage, setShowMessage] = useState(true);
   const [shouldRefreshInteractions, setShouldRefreshInteractions] =
     useState(false);
+
   const [activeTab, setActiveTab] = useState("Interactions");
+  const [lastSelectedUserId, setLastSelectedUserId] = useState(null);
   const helpMessage =
     process.env.REACT_APP_COMMUNICATION_CENTRE_HELP ||
     "No help message configured.";
@@ -100,14 +103,47 @@ const UsersList = () => {
         console.error("Error applying filter:", error);
         // Optionally, update your UI to indicate the error to the user
       });
+    toggleFilter();
   };
   const handleToggleConnectionRequests = () => {
-    setShowConnectionRequests(!showConnectionRequests); // Toggle the visibility
+    //setShowConnectionRequests(!showConnectionRequests); // Toggle the visibility
+    setShowConnectionRequests((prev) => !prev);
   };
 
   const handleToggleRequestsFromOthers = () => {
-    setShowRequestsFromOthers(!showRequestsFromOthers);
+    //setShowRequestsFromOthers(!showRequestsFromOthers);
+    setShowRequestsFromOthers((prev) => !prev);
   };
+
+  const fetchConnectionRequests = () => {
+    if (!user.id) return;
+
+    fetch(`/api/connection-requests/${user.id}`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch connection requests");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        // Filter out pseudo admin users
+        const nonAdminRequests = data.filter(
+          (request) => !request.email.endsWith("@system.com")
+        );
+
+        showConnectRequests(nonAdminRequests.length);
+        setConnectionRequests(nonAdminRequests.length);
+        
+      })
+      .catch((err) => {
+        console.error("Error:", err);
+
+      });
+  };
+  useEffect(() => {
+    fetchConnectionRequests();
+  }, [user.id]);
+
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -151,19 +187,56 @@ const UsersList = () => {
   useEffect(() => {
     fetchConnectedUsers();
   }, [loggedInUserId, authError]);
-
+  useEffect(() => {
+    if (loggedInUserId) {
+      fetchConnectionRequested();
+    }
+  }, [loggedInUserId]);
+  const fetchConnectionRequested = () => {
+    fetch(`/api/connection-requested/${loggedInUserId}`)
+      .then((response) => {
+        if (!response.ok)
+          throw new Error("Failed to fetch connection requests");
+        return response.json();
+      })
+      .then((data) => {
+        console.log("fetchConnectionRequested", data);
+        //setConnectionRequests(data);
+        setRequestsFromOthers(data.length);
+      })
+      .catch((err) => {
+        console.error("Error fetching connection requests:", err);
+      });
+  };
   const handleLogoutClick = () => {
     navigate("/"); // Update for v6
   };
-  const handleCheckboxChange = (userId) => {
+  const handleCheckboxChange = (userId, username) => {
+    // Update the selectedUserIds state
     setSelectedUserIds((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(userId)) {
         newSet.delete(userId);
+        if (lastSelectedUserId === userId) {
+          setLastSelectedUserId(null);
+        }
       } else {
         newSet.add(userId);
+        setLastSelectedUserId(userId);
       }
       return newSet;
+    });
+
+    // Update the selectedUsernames state
+    setSelectedUsernames((prev) => {
+      const index = prev.indexOf(username);
+      if (index !== -1) {
+        // Username already exists, remove it
+        return [...prev.slice(0, index), ...prev.slice(index + 1)];
+      } else {
+        // Username does not exist, add it
+        return [...prev, username];
+      }
     });
   };
 
@@ -324,6 +397,17 @@ const UsersList = () => {
       </div>
     );
   }
+  const svgStyle = {
+    position: "absolute",
+    left: "-40px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    animation: "float 2s ease-in-out infinite",
+  };
+
+  const buttonStyle = {
+    animation: "pulse 2s infinite",
+  };
   return (
     <div>
       {showMessage && (
@@ -369,25 +453,17 @@ const UsersList = () => {
           <div className="section-container">
             <div>
               <h2 className="font-style-4">Communication Centre</h2>
-              <ScrollingHelpText message={helpMessage} width="300px" />
-              {showFilter && (
-                <Modal show={showFilter} onHide={toggleFilter} centered>
-                  <Modal.Header closeButton>
-                    <Modal.Title>Update Connections</Modal.Title>
-                  </Modal.Header>
-                  <Modal.Body>
-                    <FilterUsers applyFilter={applyFilter} />
-                  </Modal.Body>
-                </Modal>
-              )}
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <ScrollingHelpText message={helpMessage} width="400px" />
+              </div>
             </div>
             <div className="users-list-container">
               <ul className="no-bullet">
                 {users.map((user) => (
                   <li key={user.id} className="user-item">
-                    <div className="user-info-container">
+                    <div className="user-info-container center-elements">
                       <span className="user-name">{user.username}</span>
-                      <div className="system-small-button-wrapper">
+                      <div className="center-elements">
                         <Button
                           variant="danger"
                           className="btn-sm"
@@ -409,10 +485,25 @@ const UsersList = () => {
                         </Button>
                         <input
                           type="checkbox"
-                          onChange={() => handleCheckboxChange(user.id)}
+                          onChange={() =>
+                            handleCheckboxChange(user.id, user.username)
+                          }
                           checked={selectedUserIds.has(user.id)}
                           className="user-checkbox"
                         />
+                        {lastSelectedUserId === user.id && (
+                          <Button
+                            variant="outline-info"
+                            className="btn-sm btn-wrap"
+                            onClick={handleNewInteraction}
+                          >
+                            Create New Submission with{" "}
+                            {selectedUsernames.join(" ")}{" "}
+                            {selectedUsernames.length === 1
+                              ? "(Add other users by checking their box)"
+                              : ""}
+                          </Button>
+                        )}
                       </div>
                     </div>
                     <div className="thumb-profile-viewer">
@@ -429,20 +520,6 @@ const UsersList = () => {
                   </li>
                 ))}
               </ul>
-              {selectedUserIds.size > 0 && (
-                <Button
-                  variant="outline-info"
-                  className="btn-sm new-interaction-btn"
-                  onClick={handleNewInteraction}
-                >
-                  {selectedUserIds.size === 1
-                    ? `Create new Submission with ${
-                        users.find((user) => selectedUserIds.has(user.id))
-                          .username
-                      }`
-                    : "Create new Submission with group members"}
-                </Button>
-              )}
             </div>
 
             <div className="button_tower">
@@ -451,8 +528,14 @@ const UsersList = () => {
                 className="btn-sm"
                 onClick={toggleFilter}
               >
-                Update Your Connection Requests
+                Replace Your Connection Requests
               </Button>
+              {showFilter && (
+                <FilterUsers
+                  applyFilter={applyFilter}
+                  closeWindow={toggleFilter}
+                />
+              )}
               <Button
                 variant="outline-info"
                 className="btn-sm"
@@ -468,22 +551,30 @@ const UsersList = () => {
                   showConnectRequests={showConnectRequests}
                 />
               )}
-              <Button
-                variant="outline-info"
-                className="btn-sm"
-                onClick={handleToggleRequestsFromOthers}
-              >
-                {showRequestsFromOthers
-                  ? "Hide Connection Requests from Others"
-                  : `Show Connection Requests from Others (${requestsFromOthers})`}
-              </Button>
-              {showRequestsFromOthers && (
-                <ConnectionRequested
-                  userId={loggedInUserId}
-                  onEnableSelectedConnections={enableSelectedConnections}
-                  showRequestsOfOthers={showRequestsOfOthers}
-                />
-              )}
+              <div style={{ position: "relative", display: "inline-block" }}>
+                {!showRequestsFromOthers && requestsFromOthers > 0 && (
+                  <svg width="30" height="30" style={svgStyle}>
+                    <polygon points="0,0 30,15 0,30" fill="blue" />
+                  </svg>
+                )}
+                <Button
+                  variant="outline-info"
+                  className="btn-sm"
+                  onClick={handleToggleRequestsFromOthers}
+                >
+                  {showRequestsFromOthers
+                    ? "Hide Connection Requests from Others"
+                    : `Show Connection Requests from Others (${requestsFromOthers})`}
+                </Button>
+
+                {showRequestsFromOthers && (
+                  <ConnectionRequested
+                    userId={loggedInUserId}
+                    onEnableSelectedConnections={enableSelectedConnections}
+                    showRequestsOfOthers={showRequestsOfOthers}
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}

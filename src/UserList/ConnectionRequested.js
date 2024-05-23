@@ -3,7 +3,19 @@ import ThumbProfileViewer from "./ThumbProfileViewer";
 import { Button } from "react-bootstrap";
 import { Trash, TrashFill } from "react-bootstrap-icons";
 import AlertMessage from "../system/AlertMessage";
+import ScrollingHelpText from "../system/ScrollingHelpText";
+
 import "bootstrap/dist/css/bootstrap.min.css";
+import {
+  version1Orientations,
+  version1Gender,
+  version1Hobbies,
+  version1Keys,
+} from "../RegistrationProfileCreation/scopedCollections";
+import FloatsMyBoat from "../RegistrationProfileCreation/FloatsMyBoat.js";
+import Gender from "../RegistrationProfileCreation/Gender.js";
+import Orientation from "../RegistrationProfileCreation/Orientation.js";
+import Hobbies from "../RegistrationProfileCreation/Hobbies.js";
 const ConnectionRequested = ({
   userId,
   onEnableSelectedConnections,
@@ -17,8 +29,13 @@ const ConnectionRequested = ({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
-  
-const [alertKey, setAlertKey] = useState(0);
+  const [alertKey, setAlertKey] = useState(0);
+  const getIndexOfValue = (arrayOf, value) => {
+    return arrayOf.indexOf(value);
+  };
+  const helpMessage =
+    process.env.REACT_APP_CONNECTION_REQUEST_TO_YOU ||
+    "No help message configured.";
   const handleCheckboxChange = (requesterId, isChecked) => {
     setSelectedUserIds((prevSelectedUserIds) => {
       const updatedSelectedUserIds = new Set(prevSelectedUserIds);
@@ -31,7 +48,6 @@ const [alertKey, setAlertKey] = useState(0);
     });
   };
   const deleteAllRequests = () => {
-
     // Call the API to delete all connection requests to the user
     fetch(`/api/delete-requests-to-me/${userId}`, {
       method: "DELETE", // Using DELETE method as per the endpoint definition
@@ -48,14 +64,14 @@ const [alertKey, setAlertKey] = useState(0);
       .then(() => {
         setMessage("All connection requests deleted successfully");
         setType("success");
-        setAlertKey(prevKey => prevKey + 1);
+        setAlertKey((prevKey) => prevKey + 1);
         // Refresh the connection requested list
         fetchConnectionRequested();
       })
       .catch((error) => {
         setMessage("Error deleting connection requests: " + error);
         setType("error");
-        setAlertKey(prevKey => prevKey + 1);
+        setAlertKey((prevKey) => prevKey + 1);
       });
   };
 
@@ -76,14 +92,14 @@ const [alertKey, setAlertKey] = useState(0);
       .then(() => {
         setMessage("Connection request deleted successfully");
         setType("info");
-        setAlertKey(prevKey => prevKey + 1);
+        setAlertKey((prevKey) => prevKey + 1);
         // Refresh the connection requested list
         fetchConnectionRequested();
       })
       .catch((error) => {
         setMessage("Error deleting connection request:" + error);
         setType("error");
-        setAlertKey(prevKey => prevKey + 1);
+        setAlertKey((prevKey) => prevKey + 1);
         //setError(error.message);
       });
   };
@@ -112,6 +128,7 @@ const [alertKey, setAlertKey] = useState(0);
     onEnableSelectedConnections(Array.from(selectedUserIds));
   };
   useEffect(() => {
+    //console.log("initial fetchConnectionRequested")
     fetchConnectionRequested();
   }, [userId]);
 
@@ -122,6 +139,7 @@ const [alertKey, setAlertKey] = useState(0);
     <div>
       <div className="connection-requests-container">
         <h2 className="font-style-4">Connection Requests to You</h2>
+        <ScrollingHelpText message={helpMessage} width="auto" />
         {connectionRequested.length > 0 && (
           <Button
             variant="danger"
@@ -136,47 +154,95 @@ const [alertKey, setAlertKey] = useState(0);
             {connectionRequested.map((request) => (
               <li key={request.request_id} className="connection-request-item">
                 {" "}
-                {/* Use request_id for key */}
                 <div className="connection-request-text">
                   <div className="left-side-listed-profile-section">
-                    <span>
-                      {request.username} ({request.sex})
-                    </span>
-                    <span>{request.floats_my_boat} floats me!</span>
+                    <span className="font-style-4">{request.username}</span>
+
+                      <div className="thumb-profile-viewer">
+                        <ThumbProfileViewer userId={request.requester_id} />
+                      </div>
+                      <div className="system-small-button-wrapper">
+                        <input
+                          type="checkbox"
+                          onChange={(e) =>
+                            handleCheckboxChange(
+                              request.requester_id,
+                              e.target.checked
+                            )
+                          }
+                        />
+                        <Button
+                          variant="danger"
+                          className="btn-sm"
+                          onClick={() => deleteContactMe(request.request_id)}
+                          onMouseEnter={() =>
+                            setHoveredDeleteContactMeId(request.id)
+                          }
+                          onMouseLeave={() => setHoveredDeleteContactMeId(null)}
+                        >
+                          {hoveredDeleteContactMeId === request.id ? (
+                            <TrashFill size={25} />
+                          ) : (
+                            <Trash size={25} />
+                          )}
+                        </Button>
+                        {selectedUserIds.has(request.requester_id) && (
+                        <Button
+                          variant="outline-info"
+                          className="btn-sm"
+                          onClick={handleEnableSelectedConnectionsClick}
+                        >
+                          Enable Selected Connections
+                        </Button>
+                      )}
+                      </div>
+
+                    <div style={{ display: "flex",justifyContent:"center" }}>
+                      <Gender
+                        onSelectGender={() => {}}
+                        selected={getIndexOfValue(version1Gender, request.sex)}
+                        defaultSize={100}
+                        noChexbox={true}
+                      />
+                      <Orientation
+                        onSelectOrientation={() => {}}
+                        selected={getIndexOfValue(
+                          version1Orientations,
+                          request.sexual_orientation
+                        )}
+                        defaultSize={100}
+                        noChexbox={true}
+                      />
+                      <Hobbies
+                        onSelectHobby={() => {}}
+                        selected={getIndexOfValue(
+                          version1Hobbies,
+                          request.hobbies
+                        )}
+                        defaultSize={100}
+                        noTitle={true}
+                        noChexbox={true}
+                      />
+                      <FloatsMyBoat
+                        onSelectCarousel={() => {}}
+                        selectedCarousel={getIndexOfValue(
+                          version1Keys,
+                          request.floats_my_boat
+                        )}
+                        defaultSize={100}
+                        noChexbox={true}
+                      />
+                    </div>
+                    <textarea
+                      readOnly
+                      className="about-you-textarea"
+                      value={
+                        request.about_you
+                          ? request.about_you
+                          : request.username + " has not entered anything yet.."
+                      }
+                    />
                   </div>
-                  <div className="middle-listed-profile-section">
-                    <p>
-                      Prefers to be referred to as {request.sexual_orientation}.
-                      Indicated hobby: {request.hobbies}.
-                    </p>
-                  </div>
-                  <div className="thumb-profile-viewer">
-                    <ThumbProfileViewer userId={request.requester_id} />
-                  </div>
-                </div>
-                <div className="system-small-button-wrapper">
-                  <input
-                    type="checkbox"
-                    onChange={(e) =>
-                      handleCheckboxChange(
-                        request.requester_id,
-                        e.target.checked
-                      )
-                    }
-                  />
-                  <Button
-                    variant="danger"
-                    className="btn-sm"
-                    onClick={() => deleteContactMe(request.request_id)}
-                    onMouseEnter={() => setHoveredDeleteContactMeId(request.id)}
-                    onMouseLeave={() => setHoveredDeleteContactMeId(null)}
-                  >
-                    {hoveredDeleteContactMeId === request.id ? (
-                      <TrashFill size={25} />
-                    ) : (
-                      <Trash size={25} />
-                    )}
-                  </Button>
                 </div>
               </li>
             ))}

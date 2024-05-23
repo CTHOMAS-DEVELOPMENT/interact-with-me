@@ -47,6 +47,6 @@ export const carousel_2 = [Carousel2_1, Carousel2_2, Carousel2_3, Carousel2_4];
 export const carousel_3 = [Carousel3_1, Carousel3_2, Carousel3_3, Carousel3_4];
 export const carousel_4 = [Carousel4_1, Carousel4_2, Carousel4_3, Carousel4_4];
 export const orientationTypes =[Orientation_1, Orientation_2,Orientation_3];
-export const genderTypes =[Gender_1,Gender_2,Gender_3,Gender_4,];
+export const genderTypes =[Gender_1,Gender_2,Gender_3,Gender_4];
 export const hobbyTypes =[Hobby_1,Hobby_2,Hobby_3,Hobby_4,Hobby_5,Hobby_6,Hobby_7,Hobby_8,Hobby_9,Hobby_10,Hobby_11,Hobby_12,Hobby_13,Hobby_14,Hobby_15,Hobby_16,Hobby_17,Hobby_18,Hobby_19,Hobby_20];
 

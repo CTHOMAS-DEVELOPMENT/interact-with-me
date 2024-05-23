@@ -1,25 +1,42 @@
-import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import React, { useState } from "react";
+import { Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+import FloatsMyBoat from "../RegistrationProfileCreation/FloatsMyBoat.js";
+import Gender from "../RegistrationProfileCreation/Gender";
+import Orientation from "../RegistrationProfileCreation/Orientation.js";
+import Hobbies from "../RegistrationProfileCreation/Hobbies.js";
+import {
+  version1Orientations,
+  version1Gender,
+  version1Hobbies,
+  version1Keys,
+} from "../RegistrationProfileCreation/scopedCollections.js";
 
-const FilterUsers = ({ applyFilter }) => {
+const FilterUsers = ({ applyFilter, closeWindow }) => {
   const [filters, setFilters] = useState({
-    username: '',
-    sexualOrientation: '',
-    hobbies: '',
-    floatsMyBoat: '',
-    sex: '',
+    username: "",
+    sexualOrientation: "",
+    hobbies: "",
+    floatsMyBoat: "",
+    sex: "",
+    aboutYou: "",
   });
-
+  const [showFloatsMyBoat, setShowFloatsMyBoat] = useState(false);
+  const [selectedCarousel, setSelectedCarousel] = useState(null);
+  const [selectedGender, setSelectedGender] = useState(null);
+  const [showGender, setShowGender] = useState(false);
+  const [selectedOrientation, setSelectedOrientation] = useState(null);
+  const [showOrientation, setShowOrientation] = useState(false);
+  const [selectedHobby, setSelectedHobby] = useState(null);
+  const [showHobbies, setShowHobbies] = useState(false);
   // Dropdown options extracted from environment variables
-  const hobbyOptions = process.env.REACT_APP_HOBBY_TYPE.split(",");
-  const sexualOrientationOptions = process.env.REACT_APP_SEXUAL_ORIENTATION_TYPE.split(",");
-  const floatsMyBoatOptions = process.env.REACT_APP_FLOATS_MY_BOAT_TYPE.split("|");
-  const showButton = filters.username.length > 3 ||
-                      filters.sexualOrientation !== '' ||
-                      filters.hobbies !== '' ||
-                      filters.floatsMyBoat !== '' ||
-                      filters.sex !== '';
+  const showButton =
+    filters.username.length > 3 ||
+    filters.sexualOrientation !== "" ||
+    filters.hobbies !== "" ||
+    filters.floatsMyBoat !== "" ||
+    filters.sex !== "" ||
+    filters.aboutYou.trim().length > 0;
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFilters((prevFilters) => ({
@@ -27,10 +44,39 @@ const FilterUsers = ({ applyFilter }) => {
       [name]: value,
     }));
   };
+  const handleCarouselSelection = (index) => {
+    setSelectedCarousel(index);
 
+    setFilters((prevFilters) => ({
+      ...prevFilters,
+      floatsMyBoat: version1Keys[index],
+    }));
+  };
+  const handleGenderSelection = (index) => {
+    setSelectedGender(index);
+
+    setFilters((prevFilters) => ({
+      ...prevFilters,
+      sex: version1Gender[index],
+    }));
+  };
+  const handleOrientationSelection = (index) => {
+    setSelectedOrientation(index);
+    setFilters((prevFilters) => ({
+      ...prevFilters,
+      sexualOrientation: version1Orientations[index],
+    }));
+  };
+  const handleHobbySelection = (index) => {
+    setSelectedHobby(index);
+    setFilters((prevFilters) => ({
+      ...prevFilters,
+      hobbies: version1Hobbies[index] || "", // Make sure version1Hobbies is accessible here
+    }));
+  };
   return (
-    <div className="filter-users">
-      <input
+    <div className="filter-users" style={{ maxWidth: "500px", margin: "0 auto", padding: "20px", overflow: "hidden" }}>
+    <input
         type="text"
         name="username"
         className="form-control mb-2" // Added Bootstrap classes for styling
@@ -38,46 +84,92 @@ const FilterUsers = ({ applyFilter }) => {
         onChange={handleChange}
         placeholder="Username"
       />
-      <select name="sexualOrientation" className="form-control mb-2" value={filters.sexualOrientation} onChange={handleChange}>
-        <option value="">Select Sexual Orientation</option>
-        {sexualOrientationOptions.map((option, index) => (
-          <option key={index} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <select name="hobbies" className="form-control mb-2" value={filters.hobbies} onChange={handleChange}>
-        <option value="">Select Hobby</option>
-        {hobbyOptions.map((option, index) => (
-          <option key={index} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <select name="floatsMyBoat" className="form-control mb-2" value={filters.floatsMyBoat} onChange={handleChange}>
-        <option value="">Select what floats your boat</option>
-        {floatsMyBoatOptions.map((option, index) => (
-          <option key={index} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <select name="sex" className="form-control mb-3" value={filters.sex} onChange={handleChange}>
-        <option value="">Select your sex</option>
-        <option value="Male">Male</option>
-        <option value="Female">Female</option>
-        <option value="Other">Other</option>
-      </select>
 
-        {showButton && (
+      <div>
         <Button
           variant="outline-info"
-          onClick={() => applyFilter(filters)}>Apply Filters
+          className="btn-sm"
+          onClick={() => setShowOrientation(!showOrientation)}
+        >
+          {showOrientation
+            ? "Hide Filter by Orientation"
+            : "Show Filter by Orientation"}
+        </Button>
+      </div>
+      {showOrientation && (
+        <Orientation
+          onSelectOrientation={handleOrientationSelection}
+          selected={selectedOrientation}
+        />
+      )}
+      <div>
+        <Button
+          variant="outline-info"
+          className="btn-sm"
+          onClick={() => setShowHobbies(!showHobbies)}
+        >
+          {showHobbies ? "Hide Filter by Hobbies" : "*Show Filter by Hobbies"}
+        </Button>
+      </div>
+      {showHobbies && (
+        <Hobbies
+          onSelectHobby={handleHobbySelection}
+          selected={selectedHobby}
+        />
+      )}
+      <div>
+        <Button
+          variant="outline-info"
+          className="btn-sm"
+          onClick={() => setShowFloatsMyBoat(!showFloatsMyBoat)}
+        >
+          {showFloatsMyBoat
+            ? "Hide Filter by Floats My Boat"
+            : "Show Filter by Floats My Boat"}
+        </Button>
+      </div>
+
+      {showFloatsMyBoat && (
+        <FloatsMyBoat
+          onSelectCarousel={handleCarouselSelection}
+          selectedCarousel={selectedCarousel}
+        />
+      )}
+      <div>
+        <Button
+          variant="outline-info"
+          className="btn-sm"
+          onClick={() => setShowGender(!showGender)}
+        >
+          {showGender ? "Hide Filter by Gender" : "Show Filter by Gender"}
+        </Button>
+      </div>
+
+      {showGender && (
+        <Gender
+          onSelectGender={handleGenderSelection}
+          selected={selectedGender}
+        />
+      )}
+
+      <textarea
+        name="aboutYou"
+        className="form-control mb-2"
+        value={filters.aboutYou}
+        onChange={handleChange}
+        placeholder="About You"
+      />
+
+      {showButton && (
+        <Button variant="outline-info" onClick={() => applyFilter(filters)}>
+          Apply Filters
         </Button>
       )}
+        <Button variant="outline-info" onClick={() => closeWindow()}>
+          Close
+        </Button>
     </div>
   );
-
 };
 
 export default FilterUsers;
