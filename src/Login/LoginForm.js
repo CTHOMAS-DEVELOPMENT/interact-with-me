@@ -79,10 +79,10 @@ const LoginForm = () => {
     return manRotation % 360 === 0 && womanRotation % 360 === 0;
   };
   const handleSubmit = (event) => {
-    console.log("handleSubmit")
+    //console.log("handleSubmit")
     event.preventDefault();
     if (!consentGiven) {
-      console.log("!consentGiven")
+      //console.log("!consentGiven")
       setMessage("Please accept or reject cookies before logging in.");
       setType("error");
       setAlertKey(prevKey => prevKey + 1); 
@@ -90,7 +90,7 @@ const LoginForm = () => {
       return;
     }
     if (!isImageCorrectlyOriented()) {
-      console.log("!isImageCorrectlyOriented()")
+      //console.log("!isImageCorrectlyOriented()")
       setMessage("Please correctly orient the images before submitting.");
       setType("error");
       setAlertKey(prevKey => prevKey + 1); 
@@ -174,7 +174,7 @@ const LoginForm = () => {
       default:
         console.log("Unrecognized consent ID");
     }
-    console.log("scoreClickConsent", consertId);
+    //console.log("scoreClickConsent", consertId);
   };
   const handleCloseModal = () => {
     setShowModal(false);

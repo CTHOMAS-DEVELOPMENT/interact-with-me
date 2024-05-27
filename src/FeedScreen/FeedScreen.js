@@ -154,7 +154,7 @@ const FeedScreen = () => {
             setAdminChat(true);
           }
           
-          console.log("admin interaction",data)
+          //console.log("admin interaction",data)
           const loggedInUser = data.find((user) => user.id === userId);
           if (loggedInUser) {
             setLoggedInUsername(loggedInUser.username);
@@ -183,13 +183,14 @@ const FeedScreen = () => {
     });
     socket.on("post update", (newPost) => {
       const interestedUserIds = newPost.interestedUserIds;
-      console.log("interestedUserIds", interestedUserIds.join());
+      //console.log("interestedUserIds", interestedUserIds.join());
       // Check if userId is in interestedUserIds and update userIsLive accordingly
       if (interestedUserIds.includes(parseInt(userId, 10))) {
         setUserIsLive(true);
       }
     });
-    //setActiveUsersForSubmission(submissionId);
+
+
     return () => {
       socket.emit("leave screen", { userId, submissionId });
       socket.off("connect");
@@ -329,6 +330,13 @@ const FeedScreen = () => {
     );
   }
   const postTypeForEmail = async (type) => {
+    //console.log("associatedUsers",associatedUsers)
+    // console.log("associatedUsers",JSON.stringify({
+    //   type: type, // Assume this is captured somewhere in your component's state or props
+    //   title: title, // Same as above
+    //   loggedInUserName: loggedInUserName, // Same as above
+    //   associatedUsers: associatedUsers, // Array of user objects
+    // }))
     if (!notificationson) {
       return;
     }

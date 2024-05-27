@@ -157,7 +157,7 @@ pgClient.connect();
 
 pgClient.query("LISTEN new_post");
 pgClient.query("LISTEN connections_change");
-
+pgClient.query("LISTEN connection_requests_change");
 // Track clients and their interest in specific submission_ids
 const clientSubmissions = {}; // { socketId: { userId: Number, submissionIds: Set(Number) } }
 const activeUsersPerSubmission = {};
@@ -206,32 +206,43 @@ io.on("connection", (socket) => {
   });
 });
 pgClient.on("notification", async (msg) => {
-  let newPost = JSON.parse(msg.payload); // Assuming newPost is a mutable object here
+  const payload = JSON.parse(msg.payload);
+  if (msg.channel === "new_post") {
+    let newPost = payload; // Assuming newPost is a mutable object here
 
-  // Query the database for users interested in this submission
-  const query = `SELECT participating_user_id FROM submission_members WHERE submission_id = $1`;
-  const res = await pgClient.query(query, [newPost.submission_id]);
-  const interestedUserIds = res.rows.map((row) => row.participating_user_id);
-  // Check if the posting user is currently active
-  let isActive = false;
-  Object.values(clientSubmissions).forEach(({ userId, activeUsers }) => {
-    if (activeUsers.has(newPost.posting_user_id)) {
-      isActive = true;
-    }
-  });
-  newPost = { ...newPost, interestedUserIds };
-  newPost.isActive = isActive;
-  // Emit to clients interested in this submission_id
-  Object.entries(clientSubmissions).forEach(
-    ([socketId, { userId, submissionIds }]) => {
-      if (
-        interestedUserIds.includes(userId) &&
-        submissionIds.has(newPost.submission_id)
-      ) {
-        io.to(socketId).emit("post update", newPost); // Emit to a specific client, now including interestedUserIds
+    // Query the database for users interested in this submission
+    const query = `SELECT participating_user_id FROM submission_members WHERE submission_id = $1`;
+    const res = await pgClient.query(query, [newPost.submission_id]);
+    const interestedUserIds = res.rows.map((row) => row.participating_user_id);
+    // Check if the posting user is currently active
+    let isActive = false;
+    Object.values(clientSubmissions).forEach(({ userId, activeUsers }) => {
+      if (activeUsers.has(newPost.posting_user_id)) {
+        isActive = true;
       }
-    }
-  );
+    });
+    newPost = { ...newPost, interestedUserIds };
+    newPost.isActive = isActive;
+    // Emit to clients interested in this submission_id
+    Object.entries(clientSubmissions).forEach(
+      ([socketId, { userId, submissionIds }]) => {
+        if (
+          interestedUserIds.includes(userId) &&
+          submissionIds.has(newPost.submission_id)
+        ) {
+          io.to(socketId).emit("post update", newPost); // Emit to a specific client, now including interestedUserIds
+        }
+      }
+    );
+  } 
+  else if (msg.channel === "connections_change") {
+    // Handle connections_change notification
+    io.emit("connections_change", payload);
+  }
+  else if (msg.channel === "connection_requests_change") {
+    // Handle connection_requests_change notification
+    io.emit("connection_requests_change", payload);
+  }
 });
 
 // Set up storage location and file naming
@@ -383,7 +394,7 @@ app.post("/api/register", async (req, res) => {
       sexualOrientation,
       floatsMyBoat,
       sex,
-      aboutYou
+      aboutYou,
     } = req.body;
 
     const saltRounds = 10;
@@ -402,7 +413,7 @@ app.post("/api/register", async (req, res) => {
         sexualOrientation,
         floatsMyBoat,
         sex,
-        aboutYou
+        aboutYou,
       ]
     );
     const newUserId = userInsertResult.rows[0].id;
@@ -495,7 +506,7 @@ app.put("/api/update_profile/:id", async (req, res) => {
     sexualOrientation,
     floatsMyBoat,
     sex,
-    aboutYou
+    aboutYou,
   } = req.body;
 
   // Validation for password length if it's not empty
@@ -536,7 +547,7 @@ app.put("/api/update_profile/:id", async (req, res) => {
     hobby,
     sexualOrientation,
     floatsMyBoat,
-    sex, 
+    sex,
     aboutYou,
     id,
   ];
@@ -557,7 +568,14 @@ app.put("/api/update_profile/:id", async (req, res) => {
 app.post("/api/filter-users/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { username, sexualOrientation, hobbies, floatsMyBoat, sex, aboutYou } = req.body;
+    const {
+      username,
+      sexualOrientation,
+      hobbies,
+      floatsMyBoat,
+      sex,
+      aboutYou,
+    } = req.body;
 
     // Initialize the query parts
     let queryConditions = [];
@@ -774,7 +792,6 @@ app.post("/api/delete-from-connection-requests/:id", async (req, res) => {
   }
 });
 
-
 app.get("/api/connected/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -938,7 +955,6 @@ app.get("/api/connected-users/:id", async (req, res) => {
     res.status(500).send({ message: "An error occurred." });
   }
 });
-
 
 async function findUserById(userId) {
   try {
@@ -1571,15 +1587,17 @@ async function deleteExpiredInteractions() {
         WHERE (2 * 24 * 60 * 60 - EXTRACT(epoch FROM NOW() - lastuser_addition)) < 0
       )
     `);
-let pathType="";
+    let pathType = "";
     // Delete the images from the filesystem
     for (const row of imagesToDelete) {
-      pathType=typeof row.uploaded_path
+      pathType = typeof row.uploaded_path;
 
       if (pathType === "string" && pathType.trim() !== "") {
-
         // Removing the 'uploaded-images' segment from the path
-        let sanitizedPath = row.uploaded_path.replace(/^.*[\\\/]uploaded-images[\\\/]/, '');
+        let sanitizedPath = row.uploaded_path.replace(
+          /^.*[\\\/]uploaded-images[\\\/]/,
+          ""
+        );
 
         const fullPath = path.join(__dirname, "imageUploaded", sanitizedPath);
 
@@ -1594,10 +1612,9 @@ let pathType="";
           console.error(`Failed to delete file ${fullPath}: `, error);
         }
       } else {
-        if(pathType!=="object")
-          {
-            console.log("Invalid path encountered, skipping deletion.");
-          }
+        if (pathType !== "object") {
+          console.log("Invalid path encountered, skipping deletion.");
+        }
       }
     }
 
@@ -1803,10 +1820,11 @@ app.post("/api/users/:submissionId/text-entry", async (req, res) => {
       dialogEntry: insertResult.rows[0],
       submissionUpdate: updateResult.rows[0],
     });
-       // Check if it's an admin post and handle separately
-       if (adminChatId > 0) { // Assuming adminId is the identifier for posts meant for the chatbot
-        handleAdminResponse(textContent, submissionId, adminChatId);
-      }
+    // Check if it's an admin post and handle separately
+    if (adminChatId > 0) {
+      // Assuming adminId is the identifier for posts meant for the chatbot
+      handleAdminResponse(textContent, submissionId, adminChatId);
+    }
   } catch (error) {
     // Rollback the transaction on error
     await pool.query("ROLLBACK");
@@ -1824,8 +1842,8 @@ async function handleAdminResponse(question, submissionId, adminChatId) {
   const response = await qa(question, process.env.ADMIN_MESSAGE_2);
 
   // Insert the admin response into the database
-    await pool.query(
-      "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content) VALUES ($1, $2, $3) RETURNING *",
+  await pool.query(
+    "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content) VALUES ($1, $2, $3) RETURNING *",
     [submissionId, adminChatId, response.answer]
   );
 }
@@ -1950,39 +1968,73 @@ app.post("/api/update_user_password", async (req, res) => {
     res.status(500).json({ message: "Server error while updating password" });
   }
 });
-app.post('/api/notify_offline_users', async (req, res) => {
+app.post("/api/notify_offline_users", async (req, res) => {
   const { type, title, loggedInUserName, associatedUsers } = req.body;
 
   try {
     for (const user of associatedUsers) {
-      const { rows } = await pool.query("SELECT email FROM users WHERE id = $1", [user.id]);
-      const email = rows[0].email; // Assuming there is always a valid email address returned
+      const { rows } = await pool.query(
+        "SELECT email, username FROM users WHERE id = $1",
+        [user.id]
+      );
+      const email = rows[0].email;
+      const username = rows[0].username;
+
+      const getMessage = () => {
+        switch (type) {
+          case 'Text':
+          case 'audio':
+          case 'picture':
+            return `Hey ${username}, ${loggedInUserName} has added a ${type} post to the '${title}' interaction you are part of in the ConnectedEngaged application.\n Please login to catch up at: http://${process.env.HOST}:${process.env.PORTFORAPP}`;
+          case 'connection_accepted':
+            return `Hey ${username}, ${loggedInUserName} has accepted your connection request you made in the ConnectedEngaged application.\n Please login to catch up at: http://${process.env.HOST}:${process.env.PORTFORAPP}`;
+          default:
+            return 'unknown type';
+        }
+      };
+
+      const getSubject = () => {
+        switch (type) {
+          case 'Text':
+          case 'audio':
+          case 'picture':
+            return `${loggedInUserName} has posted to ${title}`;
+          case 'connection_accepted':
+            return `${loggedInUserName} has accepted your connection request`;
+          default:
+            return 'unknown type';
+        }
+      };
+
+      const message = getMessage();
+      const subject = getSubject();
 
       const mailOptions = {
         from: RESET_EMAIL,
         to: email,
-        subject: `${loggedInUserName} has posted to ${title}`,
-        text: `Hey ${user.username}, ${loggedInUserName} has added a ${type} post to the '${title}' interaction you are part of in the ConnectedEngaged application.\n Please login to catch up at : http://${process.env.HOST}:${process.env.PORTFORAPP}`,
+        subject: subject,
+        text: message,
       };
 
       transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
           console.error("Error sending email to:", email, error);
         } else {
-          console.log('Email sent:', info.response);
+          console.log("Email sent:", info.response);
         }
       });
     }
 
     res.status(200).json({
       success: true,
-      message: "Email notifications have been sent."
+      message: "Email notifications have been sent.",
     });
   } catch (error) {
     console.error("Error notifying users:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // Start the server
 const PORT = process.env.PORT || process.env.PROXYPORT;

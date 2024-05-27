@@ -25,6 +25,7 @@ const ConnectionRequested = ({
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
   const [hoveredDeleteContactMeId, setHoveredDeleteContactMeId] =
     useState(null);
+  const [selectedUsernames, setSelectedUsernames] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -36,7 +37,8 @@ const ConnectionRequested = ({
   const helpMessage =
     process.env.REACT_APP_CONNECTION_REQUEST_TO_YOU ||
     "No help message configured.";
-  const handleCheckboxChange = (requesterId, isChecked) => {
+  const handleCheckboxChange = (requesterId, isChecked, username) => {
+    //console.log("handleCheckboxChange",username)
     setSelectedUserIds((prevSelectedUserIds) => {
       const updatedSelectedUserIds = new Set(prevSelectedUserIds);
       if (isChecked) {
@@ -46,7 +48,23 @@ const ConnectionRequested = ({
       }
       return updatedSelectedUserIds;
     });
+    setSelectedUsernames((prevSelectedUsernames) => {
+      const updatedSelectedUsernames = new Set(prevSelectedUsernames);
+      if (isChecked) {
+        updatedSelectedUsernames.add(username);
+      } else {
+        updatedSelectedUsernames.delete(username);
+      }
+      return updatedSelectedUsernames;
+    });
+
+
   };
+  
+
+  
+
+
   const deleteAllRequests = () => {
     // Call the API to delete all connection requests to the user
     fetch(`/api/delete-requests-to-me/${userId}`, {
@@ -113,7 +131,7 @@ const ConnectionRequested = ({
         return response.json();
       })
       .then((data) => {
-        console.log("Connection requests fetched successfully:", data);
+        //console.log("Connection requests fetched successfully:", data);
         showRequestsOfOthers(data.length);
         setConnectionRequested(data);
         setIsLoading(false);
@@ -125,7 +143,10 @@ const ConnectionRequested = ({
       });
   };
   const handleEnableSelectedConnectionsClick = () => {
-    onEnableSelectedConnections(Array.from(selectedUserIds));
+    onEnableSelectedConnections(
+      Array.from(selectedUserIds),
+      Array.from(selectedUsernames)
+    );
   };
   useEffect(() => {
     //console.log("initial fetchConnectionRequested")
@@ -167,7 +188,8 @@ const ConnectionRequested = ({
                           onChange={(e) =>
                             handleCheckboxChange(
                               request.requester_id,
-                              e.target.checked
+                              e.target.checked,
+                              request.username
                             )
                           }
                         />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import io from "socket.io-client";
 import JSZip from "jszip";
 import { useLocation, useNavigate } from "react-router-dom";
 import InteractionTitles from "../InteractionTitles/InteractionTitles";
@@ -33,6 +34,8 @@ const UsersList = () => {
 
   const [activeTab, setActiveTab] = useState("Interactions");
   const [lastSelectedUserId, setLastSelectedUserId] = useState(null);
+  const [notificationson, setNotificationsOn] = useState(false);//overide default
+
   const helpMessage =
     process.env.REACT_APP_COMMUNICATION_CENTRE_HELP ||
     "No help message configured.";
@@ -133,17 +136,14 @@ const UsersList = () => {
 
         showConnectRequests(nonAdminRequests.length);
         setConnectionRequests(nonAdminRequests.length);
-        
       })
       .catch((err) => {
         console.error("Error:", err);
-
       });
   };
   useEffect(() => {
     fetchConnectionRequests();
   }, [user.id]);
-
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -188,6 +188,43 @@ const UsersList = () => {
     fetchConnectedUsers();
   }, [loggedInUserId, authError]);
   useEffect(() => {
+    const socket = io(process.env.REACT_APP_BACKEND_HOST);
+    socket.on("connections_change", (data) => {
+      //console.log("connections_change", data);
+      /**
+       connections_change 
+Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:24:12.405383" }
+​
+       */
+      /*On the requested id screen refresh their screen*/
+      if (data.user_two_id === loggedInUserId) {
+        //console.log("loggedInUserId-data.user_two_id", data.user_two_id);
+        fetchConnectedUsers();
+        //The connection requested by userId=84 has been accepted by userId=149
+        
+      }
+      /*On the requester id machine send email to herself that her 
+      connection request has been accepted*/
+      if (data.user_one_id === loggedInUserId) {
+        fetchConnectedUsers();
+        //console.log("**users",users);
+        fetchConnectionRequests();
+        setShowConnectionRequests(false);
+   
+      }
+    });
+    socket.on("connection_requests_change", (data) => {
+      //console.log("connection_requests_change", data);
+      if(data.requested_id===loggedInUserId)
+
+      fetchConnectionRequested()
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+  useEffect(() => {
     if (loggedInUserId) {
       fetchConnectionRequested();
     }
@@ -200,7 +237,7 @@ const UsersList = () => {
         return response.json();
       })
       .then((data) => {
-        console.log("fetchConnectionRequested", data);
+        //console.log("fetchConnectionRequested", data);
         //setConnectionRequests(data);
         setRequestsFromOthers(data.length);
       })
@@ -266,7 +303,7 @@ const UsersList = () => {
         return response.json();
       })
       .then((data) => {
-        console.log("Success:", data);
+        //console.log("Success:", data);
         setRefreshNeeded(true);
       })
       .catch((error) => {
@@ -338,38 +375,89 @@ const UsersList = () => {
       }, // Passing loggedInUserId to NewSubmission
     });
   };
-  const enableSelectedConnections = (selectedUserIds) => {
+  const informConnectionSuccess = async (selectedUserIds, selectedUserNames) => {
+    // Ensure both arrays have the same length
+    if (selectedUserIds.length !== selectedUserNames.length) {
+      console.error("Selected user IDs and names arrays do not match in length.");
+      return;
+    }
+   
+    if (!notificationson) {
+      return;
+    }
+  
+    const associatedUsers = selectedUserIds.map((id, index) => ({
+      id: id,
+      username: selectedUserNames[index],
+    }));
+  
+    try {
+      for (let i = 0; i < associatedUsers.length; i++) {
+        const response = await fetch("/api/notify_offline_users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "connection_accepted",
+            title: "", // No title is needed for connection acceptance
+            loggedInUserName: user.username,
+            associatedUsers: [associatedUsers[i]], // Send one user at a time
+          }),
+        });
+  
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+  
+        const result = await response.json();
+        console.log("Notification sent successfully:", result);
+      }
+    } catch (error) {
+      console.error("Error sending notification:", error);
+    }
+  };
+  
+  const enableSelectedConnections = async (selectedUserIds, selectedUserNames) => {
     setShowRequestsFromOthers(false);
-
+  
     // Prepare the data to be sent in the request body
     const requestData = { selectedUserIds };
-
-    fetch(`/api/enable-selected-connections/${loggedInUserId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestData),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          // If the server response is not OK, throw an error
-          throw new Error("Network response was not ok");
-        }
-        return response.json(); // Assuming the server responds with JSON
-      })
-      .then((data) => {
-        // Handle the successful response here
-        console.log("Connections successfully enabled:", data);
-        fetchConnectedUsers();
-        // You may want to update your component's state based on the successful operation
-        // For example, clear selectedUserIds or show a success message
-      })
-      .catch((error) => {
-        console.error("Error enabling connections:", error);
-        // Optionally, update your UI to indicate the error to the user
+  
+    try {
+      const response = await fetch(`/api/enable-selected-connections/${loggedInUserId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
       });
+  
+      if (!response.ok) {
+        // If the server response is not OK, throw an error
+        throw new Error("Network response was not ok");
+      }
+  
+      const data = await response.json(); // Assuming the server responds with JSON
+  
+      // Handle the successful response here
+      console.log("Connections successfully enabled:", data);
+  
+      try {
+        await informConnectionSuccess(selectedUserIds, selectedUserNames);
+      } catch (error) {
+        console.error("Error in informConnectionSuccess:", error);
+      }
+  
+      fetchConnectedUsers();
+      // You may want to update your component's state based on the successful operation
+      // For example, clear selectedUserIds or show a success message
+    } catch (error) {
+      console.error("Error enabling connections:", error);
+      // Optionally, update your UI to indicate the error to the user
+    }
   };
+  
   const fetchConnectedUsers = () => {
     if (!authError && loggedInUserId) {
       fetch(`/api/connected/${loggedInUserId}`)
@@ -379,6 +467,7 @@ const UsersList = () => {
           const dbUserlist = data.filter((user) => user.id !== loggedInUserId);
           setUser(loggedInUser);
           setUsers(dbUserlist);
+
         })
         .catch((error) => console.error("Error fetching users:", error));
     }
