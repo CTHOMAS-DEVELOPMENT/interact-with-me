@@ -550,6 +550,26 @@ input {
   flex-direction: column;
   align-items: center;
 }
+
+.user-container {
+  text-align: center;
+  margin: 10px;
+}
+
+.post-profile-image {
+  display: block;
+  margin: 0 auto;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 5px;
+}
+
+
+
 @keyframes float {
   0%,
   100% {
@@ -703,7 +723,7 @@ Interaction_entry {
 
 /* Instead of body, add padding to the main content container of your FeedScreen */
 .feed-displacement {
-  padding-top: 150px; /* Adjust this value based on the actual height of your header */
+  padding-top: 180px; /* Adjust this value based on the actual height of your header */
   /* Other styles for your feed content */
 }
 .header-top {

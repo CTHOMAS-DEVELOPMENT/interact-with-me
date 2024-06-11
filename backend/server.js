@@ -3,6 +3,7 @@ const express = require("express");
 const { Pool, Client } = require("pg");
 const multer = require("multer");
 const fs = require("fs");
+const fsx = require("fs-extra");
 const path = require("path");
 const sharp = require("sharp");
 const jwt = require("jsonwebtoken");
@@ -11,6 +12,11 @@ const socketIo = require("socket.io");
 const cors = require("cors"); // Assuming you're using the 'cors' package for Express
 const JSZip = require("jszip");
 const util = require("util");
+
+//For .env
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 100; // in milliseconds
+
 // Create a new express application
 const app = express();
 const server = http.createServer(app);
@@ -74,23 +80,6 @@ const io = socketIo(server, {
     credentials: true, // Optional: if you need credentials
   },
 });
-// Initialize the HfInference object with your API token
-// const inference = new HfInference(HF_TOKEN);
-
-// (async () => {
-//   try {
-//     // Perform a translation task
-//     const response = await inference.translation({
-//       model: "t5-base",
-//       inputs: "My name is Wolfgang and I live in Amsterdam",
-//     });
-//   } catch (error) {
-//     console.error("Error during model inference:", error);
-//   }
-// })();
-// const openai = new OpenAI({
-//   apiKey: process.env.OPENAI_API_KEY,
-// });
 
 const transporter = nodemailer.createTransport({
   service: "gmail", // Example using Gmail
@@ -109,27 +98,28 @@ app.use(
   express.static(path.join(__dirname, "imageUploaded"))
 );
 // PostgreSQL connection configuration
-const pool = new Pool({
-  user: "interactwithmeadmin",
-  host: process.env.HOST, // Adjust if your DB is hosted elsewhere
-  database: "interactwithme",
-  password: "interactwithmeadmin",
-  port: process.env.PORTNO, // Default PostgreSQL port
-});
-// const pool = new Pool({
-//   user: "interactwithme_admin",
-//   host: HOST, // Adjust if your DB is hosted elsewhere
-//   database: "interactwithmetest",
-//   password: "your_secure_password",
-//   port: PORTNO, // Default PostgreSQL port
-// });
 // const pool = new Pool({
 //   user: "interactwithmeadmin",
-//   host: HOST, // Adjust if your DB is hosted elsewhere
+//   host: process.env.HOST, // Adjust if your DB is hosted elsewhere
 //   database: "interactwithme",
 //   password: "interactwithmeadmin",
-//   port: PORTNO, // Default PostgreSQL port
+//   port: process.env.PORTNO, // Default PostgreSQL port
 // });
+// const pool = new Pool({
+//   user: "interactone", // Update to new user
+//   host: process.env.HOST, // Adjust if your DB is hosted elsewhere
+//   database: "interactwithme2", // Update to new database
+//   password: "one_password", // Update to new user's password
+//   port: process.env.PORTNO, // Default PostgreSQL port
+// });
+const pool = new Pool({
+  user: "interactone",
+  host: "localhost", // Using localhost as specified
+  database: "interactwithme2", // New database
+  password: "one_password", // New user's password
+  port: process.env.PORTNO || 5432, // Ensure the port is correct
+});
+
 function handleDatabaseError(error, res) {
   // Duplicate username
   if (error.code === "23505" && error.constraint === "users_username_key") {
@@ -142,18 +132,36 @@ function handleDatabaseError(error, res) {
   }
 }
 // Verify database connection
+// Verify database connection
 pool.connect((err, client, release) => {
   if (err) {
     return console.error("Error acquiring client", err.stack);
   }
   console.log("Connected to PostgreSQL Database");
-  release();
+
+  client.query("SELECT current_user;", (err, result) => {
+    release();
+    if (err) {
+      return console.error("Error executing query", err.stack);
+    }
+    console.log("Connected as:", result.rows[0].current_user);
+  });
 });
 
-const connectionString = `postgresql://interactwithmeadmin:interactwithmeadmin@${process.env.HOST}:${process.env.PORTNO}/interactwithme`;
+//const connectionString = `postgresql://interactwithmeadmin:interactwithmeadmin@${process.env.HOST}:${process.env.PORTNO}/interactwithme`;
+//const connectionString = `postgresql://interactone:interactone@${process.env.HOST}:${process.env.PORTNO}/interactwithme2`;
+const connectionString = `postgresql://interactone:one_password@localhost:${
+  process.env.PORTNO || 5432
+}/interactwithme2`;
 
 const pgClient = new Client({ connectionString });
-pgClient.connect();
+pgClient.connect((err) => {
+  if (err) {
+    return console.error("Connection error", err.stack);
+  } else {
+    console.log("Connected to PostgreSQL Database");
+  }
+});
 
 pgClient.query("LISTEN new_post");
 pgClient.query("LISTEN connections_change");
@@ -163,6 +171,7 @@ const clientSubmissions = {}; // { socketId: { userId: Number, submissionIds: Se
 const activeUsersPerSubmission = {};
 
 io.on("connection", (socket) => {
+  console.log("New client connected", socket.id);
   socket.on("register", ({ userId, submissionIds }) => {
     if (!clientSubmissions[socket.id]) {
       clientSubmissions[socket.id] = {
@@ -173,6 +182,7 @@ io.on("connection", (socket) => {
     }
     // Add user to active users
     clientSubmissions[socket.id].activeUsers.add(userId);
+    console.log("User registered", userId, "with submissions", submissionIds);
   });
 
   socket.on("enter screen", ({ userId, submissionId }) => {
@@ -204,7 +214,37 @@ io.on("connection", (socket) => {
     // Ensure this socket leaves the room
     socket.leave(`submission-${submissionId}`);
   });
+
+  socket.on("callUser", ({ userToCall, signalData, from }) => {
+    const recipientSocketId = Object.keys(clientSubmissions).find(
+      (socketId) => clientSubmissions[socketId].userId === userToCall
+    );
+
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit("incomingCall", {
+        from,
+        signal: signalData,
+      });
+      console.log(`Calling user ${userToCall} from ${from}`);
+    } else {
+      console.log(`User to call not found: ${userToCall}`);
+    }
+  });
+
+  socket.on("acceptCall", ({ signal, to }) => {
+    const callerSocketId = Object.keys(clientSubmissions).find(
+      (socketId) => clientSubmissions[socketId].userId === to
+    );
+
+    if (callerSocketId) {
+      io.to(callerSocketId).emit("callAccepted", signal);
+      console.log(`Call accepted by ${to}`);
+    } else {
+      console.log(`Caller not found for ${to}`);
+    }
+  });
 });
+
 pgClient.on("notification", async (msg) => {
   const payload = JSON.parse(msg.payload);
   if (msg.channel === "new_post") {
@@ -234,12 +274,10 @@ pgClient.on("notification", async (msg) => {
         }
       }
     );
-  } 
-  else if (msg.channel === "connections_change") {
+  } else if (msg.channel === "connections_change") {
     // Handle connections_change notification
     io.emit("connections_change", payload);
-  }
-  else if (msg.channel === "connection_requests_change") {
+  } else if (msg.channel === "connection_requests_change") {
     // Handle connection_requests_change notification
     io.emit("connection_requests_change", payload);
   }
@@ -383,6 +421,138 @@ function determinePartnerPreference(orientation, gender) {
       return "Female";
   }
 }
+
+async function processZipFile(
+  zipFilePath,
+  userId,
+  originalFileName,
+  removeZip = true
+) {
+  console.log("Starting processZipFile");
+  console.log("zipFilePath:", zipFilePath);
+  console.log("userId:", userId);
+  console.log("originalFileName:", originalFileName);
+  const data = fs.readFileSync(zipFilePath);
+  const zip = await JSZip.loadAsync(data);
+  const zipFiles = Object.keys(zip.files);
+
+  let jsonFileCount = 0;
+
+  console.log("zipFiles:", zipFiles);
+
+  let isValid = true;
+  let imageFileCount = 0;
+  let interactionData;
+  const mediaFiles = [];
+
+  zipFiles.forEach((filename) => {
+    if (filename.endsWith(".json")) {
+      jsonFileCount++;
+    } else if (filename.match(/\.(jpg|jpeg|png)$/i)) {
+      imageFileCount++;
+    } else {
+      isValid = false;
+    }
+  });
+
+  if (jsonFileCount !== 1) {
+    isValid = false; // There must be exactly one JSON file
+  }
+
+  if (!isValid) {
+    throw new Error(
+      "ZIP archive contents are invalid. It should contain exactly one JSON file and any number of image files."
+    );
+  }
+
+  // Process valid ZIP contents here
+  for (const [filename, fileData] of Object.entries(zip.files)) {
+    if (filename.endsWith(".json")) {
+      const content = await fileData.async("string");
+      interactionData = JSON.parse(content);
+    } else {
+      // Prepare for saving media files later
+      const mediaData = await fileData.async("nodebuffer");
+      mediaFiles.push({ filename, mediaData });
+    }
+  }
+
+  if (!interactionData) {
+    throw new Error("No JSON file found in the ZIP archive.");
+  }
+
+  // Derive the interaction title from the original file name
+  const interactionTitle = originalFileName
+    .replace(/_/g, " ")
+    .replace(".zip", "");
+  console.log("interactionTitle:", interactionTitle);
+  console.log("user_id:", userId);
+  // Insert the interaction title and userId into the database
+  const submissionResult = await pool.query(
+    "INSERT INTO user_submissions (user_id, title) VALUES ($1, $2) RETURNING id",
+    [userId, interactionTitle]
+  );
+  //11,'Welcome MoreCake'
+  // INSERT INTO user_submissions (user_id, title) VALUES (11,'Welcome MoreCake')
+  const submissionId = submissionResult.rows[0].id;
+  console.log("submissionId:", submissionId);
+  // Save media files to the server and update interactionData with new paths
+  for (const { filename, mediaData } of mediaFiles) {
+    const sanitizedFilename = filename.replace("uploaded-images\\", "");
+    const fullPath = path.join(__dirname, "imageUploaded", sanitizedFilename);
+    const relativePath = `/uploaded-images/${sanitizedFilename}`;
+    // Ensure the directory exists
+    await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
+
+    // Save the media file
+    await fs.promises.writeFile(fullPath, mediaData);
+
+    // Update interactionData entries with the new file path
+    interactionData = interactionData.map((entry) => {
+      if (entry.uploaded_path && entry.uploaded_path.includes(filename)) {
+        return { ...entry, uploaded_path: relativePath }; // Ensures the use of relativePath
+      }
+      return entry;
+    });
+  }
+
+  const uniqueUserIds = [
+    ...new Set(interactionData.map((entry) => entry.posting_user_id)),
+  ];
+
+  // Insert unique posting_user_ids into submission_members
+  for (const postingUserId of uniqueUserIds) {
+    await pool.query(
+      "INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2)",
+      [submissionId, postingUserId]
+    );
+  }
+
+  // Insert interaction data into the database
+  for (const entry of interactionData) {
+    await pool.query(
+      "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content, uploaded_path, created_at) VALUES ($1, $2, $3, $4, $5)",
+      [
+        submissionId,
+        entry.posting_user_id,
+        entry.content,
+        entry.uploaded_path,
+        entry.created_at,
+      ]
+    );
+  }
+
+  // Cleanup: Remove the uploaded ZIP file after processing
+  if (removeZip) {
+    await util.promisify(fs.unlink)(zipFilePath);
+  }
+  // Return a JSON response indicating success
+  return {
+    message: `Successfully processed ZIP file with ${jsonFileCount} JSON file and ${imageFileCount} image files.`,
+    submissionId: submissionId,
+  };
+}
+
 app.post("/api/register", async (req, res) => {
   const client = await pool.connect();
   try {
@@ -401,7 +571,7 @@ app.post("/api/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     await client.query("BEGIN"); // Start transaction
-
+    console.log("Attempting to insert new user");
     // Insert the new User
     const userInsertResult = await client.query(
       "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat, sex, about_you) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
@@ -416,49 +586,43 @@ app.post("/api/register", async (req, res) => {
         aboutYou,
       ]
     );
+    console.log("User inserted successfully");
     const newUserId = userInsertResult.rows[0].id;
 
-    // Determine the gender for the admin based on user preference
-    const usersAdminSex = determinePartnerPreference(sexualOrientation, sex);
-    const usersAdminProfilePicture =
-      usersAdminSex === "Female"
-        ? "backend\\imageUploaded\\file-WOMAN.png"
-        : "backend\\imageUploaded\\file-MAN.png";
-    const usersVoiceFile =
-      usersAdminSex === "Female"
-        ? "introduction_woman.mp3"
-        : "introduction_man.mp3";
-    // Insert user's dedicated admin
-    const adminInsertResult = await client.query(
-      "INSERT INTO users (username, email, password, hobbies, sexual_orientation, floats_my_boat, sex, profile_picture) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
-      [
-        "Admin for " + username,
-        username + "@system.com",
-        hashedPassword,
-        hobby,
-        sexualOrientation,
-        floatsMyBoat,
-        usersAdminSex,
-        usersAdminProfilePicture,
-      ]
+    // Query to find the existing admin's ID
+    const adminResult = await client.query(
+      "SELECT id FROM users WHERE username='Admin'"
     );
-    const newAdminId = adminInsertResult.rows[0].id;
+
+    // Ensure the admin exists
+    if (adminResult.rows.length === 0) {
+      throw new Error("Admin not found");
+    }
+
+    // Extract the admin's ID
+    const existingAdminId = adminResult.rows[0].id;
+    const [userOneId, userTwoId] =
+      newUserId < existingAdminId
+        ? [newUserId, existingAdminId]
+        : [existingAdminId, newUserId];
+
     // Insert the connection record
     await client.query(
       "INSERT INTO connections (user_one_id, user_two_id) VALUES ($1, $2)",
-      [newUserId, newAdminId]
+      [userOneId, userTwoId]
     );
+    await client.query("COMMIT");
     // Insert welcome submission for the new user by the admin
     const submissionInsertResult = await client.query(
       "INSERT INTO user_submissions (user_id, title) VALUES ($1, $2) RETURNING id",
-      [newAdminId, `Welcome ${username}`]
+      [existingAdminId, `Welcome ${username}`]
     );
     const submissionId = submissionInsertResult.rows[0].id;
 
     // Insert new admin and new user as participants in the submission
     await client.query(
       "INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2)",
-      [submissionId, newAdminId]
+      [submissionId, existingAdminId]
     );
 
     await client.query(
@@ -466,26 +630,21 @@ app.post("/api/register", async (req, res) => {
       [submissionId, newUserId]
     );
 
-    // Insert dialog entries: an image and a welcome message
-    // await client.query(
-    //   "INSERT INTO submission_dialog (submission_id, posting_user_id, uploaded_path) VALUES ($1, $2, $3)",
-    //   [
-    //     submissionId,
-    //     newAdminId,
-    //     "\\uploaded-images\\thumb-connectedEngager.png",
-    //   ]
-    // );
-    // await client.query(
-    //   "INSERT INTO submission_dialog (submission_id, posting_user_id, uploaded_path) VALUES ($1, $2, $3)",
-    //   [submissionId, newAdminId, `\\uploaded-images\\${usersVoiceFile}`]
-    // );
     await client.query(
       "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content) VALUES ($1, $2, $3)",
-      [submissionId, newAdminId, process.env.ADMIN_MESSAGE_1]
+      [submissionId, existingAdminId, process.env.ADMIN_MESSAGE_1]
+    );
+    const result = await newUserAdminMessage(newUserId, `Welcome_${username}`);
+    console.log("*result*", result.submissionId);
+    //INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2);
+    await client.query(
+      "INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2)",
+      [result.submissionId, newUserId]
     );
 
-    await client.query("COMMIT"); // Commit the transaction
+    //Call newUserAdminMessage and wait for its completion
 
+    // Send the response to the client
     res.json({ id: newUserId, username: username });
   } catch (error) {
     await client.query("ROLLBACK"); // Roll back the transaction on error
@@ -796,41 +955,42 @@ app.get("/api/connected/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const query = `
-      (SELECT 
-        null as connection_id, -- Placeholder for the current user
-        id, 
-        username, 
-        email, 
-        sexual_orientation, 
-        hobbies, 
-        floats_my_boat, 
-        sex,
-        about_you 
-      FROM 
-        users 
-      WHERE 
-        id = $1)
+      SELECT * FROM (
+        (SELECT 
+          null as connection_id, -- Placeholder for the current user
+          id, 
+          username, 
+          email, 
+          sexual_orientation, 
+          hobbies, 
+          floats_my_boat, 
+          sex,
+          about_you 
+        FROM 
+          users 
+        WHERE 
+          id = $1)
 
-      UNION
+        UNION
 
-      (SELECT 
-        connections.id as connection_id, -- Include connection ID for associated users
-        U2.id, 
-        U2.username, 
-        U2.email, 
-        U2.sexual_orientation, 
-        U2.hobbies, 
-        U2.floats_my_boat, 
-        U2.sex,
-        U2.about_you
-      FROM 
-        users U1
-        JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id
-        JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id
-      WHERE 
-        U1.id = $1 AND U2.id != $1
-      ORDER BY 
-        username);
+        (SELECT 
+          connections.id as connection_id, -- Include connection ID for associated users
+          U2.id, 
+          U2.username, 
+          U2.email, 
+          U2.sexual_orientation, 
+          U2.hobbies, 
+          U2.floats_my_boat, 
+          U2.sex,
+          U2.about_you
+        FROM 
+          users U1
+          JOIN connections ON U1.id = connections.user_one_id OR U1.id = connections.user_two_id
+          JOIN users U2 ON U2.id = connections.user_one_id OR U2.id = connections.user_two_id
+        WHERE 
+          U1.id = $1 AND U2.id != $1)
+      ) AS combined_result
+      ORDER BY username;
     `;
 
     const result = await pool.query(query, [userId]);
@@ -840,6 +1000,7 @@ app.get("/api/connected/:userId", async (req, res) => {
     res.status(500).send({ message: "An error occurred." });
   }
 });
+
 app.delete("/api/delete-requests-from-me/:userId", async (req, res) => {
   const { userId } = req.params; // Extract userId from the request URL
 
@@ -1018,74 +1179,200 @@ app.get("/api/users/:userId/profile-picture", async (req, res) => {
   }
 });
 
+async function deleteFile(filePath) {
+  try {
+    await fsx.unlink(filePath);
+    console.log(`Successfully deleted file: ${filePath}`);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.error(`File not found, removing from schedule: ${filePath}`);
+    } else {
+      console.error(`Error deleting file: ${filePath}. Error: ${error.message}`);
+      throw error;
+    }
+  }
+}
+
+async function scheduleFileForDeletion(client, filePath) {
+  try {
+    await client.query("INSERT INTO scheduled_deletions (file_path) VALUES ($1)", [filePath]);
+    console.log(`Scheduled file for deletion: ${filePath}`);
+  } catch (error) {
+    console.error(`Error scheduling file for deletion: ${filePath}. Error: ${error.message}`);
+  }
+}
+
+async function restoreOriginalProfilePicture(client, userId, originalFilePath) {
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "UPDATE users SET profile_picture = $1 WHERE id = $2",
+      [originalFilePath, userId]
+    );
+    await client.query("COMMIT");
+    console.log("Successfully restored original profile picture");
+  } catch (restoreError) {
+    await client.query("ROLLBACK");
+    console.error(`Error restoring original profile picture: ${restoreError.message}`);
+  }
+}
+
+async function generateThumbnail(filePath, thumbnailPath) {
+  return new Promise((resolve, reject) => {
+    sharp(filePath)
+      .metadata()
+      .then(metadata => {
+        const longerDimension = metadata.width > metadata.height ? "width" : "height";
+        const resizeOptions = { [longerDimension]: 100 };
+
+        sharp(filePath)
+          .resize(resizeOptions)
+          .toFile(thumbnailPath)
+          .then(() => {
+            resolve();
+          })
+          .catch(error => {
+            reject(error);
+          });
+      })
+      .catch(error => {
+        reject(error);
+      });
+  });
+}
+
+async function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 app.post(
   "/api/users/:userId/profile-picture",
   upload.single("file"),
   async (req, res) => {
+    const client = await pool.connect();
+    let originalFilePath = null;
+    let originalThumbnailPath = null;
+    const newFilePath = req.file.path;
+    const newThumbnailPath = path.join(
+      path.dirname(newFilePath),
+      "thumb-" + path.basename(newFilePath)
+    );
+
     try {
       const userId = req.params.userId;
-      // Start a transaction
-      await pool.query("BEGIN");
 
-      const filePath = req.file.path;
-      const thumbnailPath = path.join(
-        path.dirname(filePath),
-        "thumb-" + path.basename(filePath)
-      );
+      await client.query("BEGIN");
 
-      // Retrieve the original image dimensions
-      const metadata = await sharp(filePath).metadata();
-      const longerDimension =
-        metadata.width > metadata.height ? "width" : "height";
-      const resizeOptions = {
-        [longerDimension]: 100, // Set the longer dimension to 100 pixels
-      };
-
-      // Generate thumbnail while maintaining aspect ratio
-      await sharp(filePath).resize(resizeOptions).toFile(thumbnailPath);
-
-      // First, retrieve the current profile picture path for the user, if it exists
-      const { rows: existingUser } = await pool.query(
-        "SELECT profile_picture FROM users WHERE id = $1",
+      // Retrieve the current profile picture path for the user, if it exists
+      const { rows: existingUser } = await client.query(
+        "SELECT profile_picture FROM users WHERE id = $1 FOR UPDATE",
         [userId]
       );
 
-      // If there's an existing profile picture, delete the file
       if (existingUser.length > 0 && existingUser[0].profile_picture) {
-        const existingFilePath = existingUser[0].profile_picture;
-        // Assuming your file paths are stored relative to a base directory you define (for safety)
-        //const baseDir = path.resolve(__dirname, 'pathToYourImagesDirectory'); // Adjust to your images directory
-        const sanitizedPath = existingFilePath.replace(
-          /backend\\imageUploaded\\/g,
-          ""
+        originalFilePath = existingUser[0].profile_picture;
+        originalThumbnailPath = path.join(
+          path.dirname(originalFilePath),
+          "thumb-" + path.basename(originalFilePath)
         );
-        const baseDir = path.resolve(__dirname, "imageUploaded");
-        const fullPath = path.join(baseDir, sanitizedPath);
-
-        if (fs.existsSync(fullPath)) {
-          await fs.promises.unlink(fullPath);
-        }
       }
 
       // Update the user's profile picture path in the database
-      const profilePicturePath = req.file.path;
-      const result = await pool.query(
+      const result = await client.query(
         "UPDATE users SET profile_picture = $1 WHERE id = $2 RETURNING *",
-        [profilePicturePath, userId]
+        [newFilePath, userId]
       );
 
-      // Commit the transaction
-      await pool.query("COMMIT");
+      await client.query("COMMIT");
+
+      // Generate thumbnail while maintaining aspect ratio
+      await generateThumbnail(newFilePath, newThumbnailPath);
+
+      // Ensure all file operations are completed before attempting to delete old files
+      await delay(100); // Small delay to ensure file locks are released
+
+      // If there was an existing profile picture, delete the file and its thumbnail after the transaction is committed
+      if (originalFilePath) {
+        try {
+          await deleteFile(originalFilePath);
+          await deleteFile(originalThumbnailPath);
+        } catch (err) {
+          console.error(`Error deleting old profile picture and thumbnail: ${err.message}`);
+          // Schedule the files for deletion
+          await scheduleFileForDeletion(client, originalFilePath);
+          await scheduleFileForDeletion(client, originalThumbnailPath);
+        }
+      }
 
       res.json(result.rows[0]);
     } catch (error) {
-      // Rollback in case of error
-      await pool.query("ROLLBACK");
+      await client.query("ROLLBACK");
       console.error(error);
+
+      // Cleanup: Delete the newly uploaded file and its thumbnail if an error occurs
+      if (newFilePath) {
+        try {
+          await deleteFile(newFilePath);
+        } catch (cleanupError) {
+          console.error("Error during cleanup:", cleanupError);
+          // Schedule the new files for deletion
+          await scheduleFileForDeletion(client, newFilePath);
+        }
+
+        try {
+          await deleteFile(newThumbnailPath);
+        } catch (cleanupError) {
+          console.error("Error during thumbnail cleanup:", cleanupError);
+          // Schedule the new files for deletion
+          await scheduleFileForDeletion(client, newThumbnailPath);
+        }
+      }
+
+      // Restore original profile picture if an error occurs
+      if (originalFilePath) {
+        await restoreOriginalProfilePicture(client, req.params.userId, originalFilePath);
+      }
+
       handleDatabaseError(error, res);
+    } finally {
+      client.release();
     }
   }
-);
+)
+//Cleanup files
+async function cleanupScheduledDeletions() {
+  const client = await pool.connect();
+
+  try {
+    const { rows: filesToDelete } = await client.query("SELECT id, file_path FROM scheduled_deletions");
+
+    for (const file of filesToDelete) {
+      const { id, file_path } = file;
+
+      try {
+        await deleteFile(file_path);
+        await client.query("DELETE FROM scheduled_deletions WHERE id = $1", [id]);
+        console.log(`Successfully deleted scheduled file: ${file_path}`);
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          // Remove the record from the table if the file does not exist
+          await client.query("DELETE FROM scheduled_deletions WHERE id = $1", [id]);
+          console.log(`Removed non-existent file from schedule: ${file_path}`);
+        } else {
+          console.error(`Error deleting scheduled file: ${file_path}. Error: ${error.message}`);
+        }
+        // Continue with next file
+      }
+    }
+  } catch (error) {
+    console.error(`Error during cleanup: ${error.message}`);
+  } finally {
+    client.release();
+  }
+}
+
+// Schedule the cleanup job to run periodically
+setInterval(cleanupScheduledDeletions, 60000); // Run every 60 seconds
 
 // Separate multer configuration for profile video uploads
 const videoUpload = multer({
@@ -1446,134 +1733,45 @@ app.post(
       });
     }
 
-    const zipFile = req.file.path;
+    const zipFilePath = req.file.path;
     const userId = req.body.userId;
+    const originalFileName = req.file.originalname;
 
     try {
-      const data = fs.readFileSync(zipFile);
-      const zip = await JSZip.loadAsync(data);
-      const zipFiles = Object.keys(zip.files);
-
-      let jsonFileCount = 0;
-      let isValid = true;
-      let imageFileCount = 0;
-      let interactionData;
-      const mediaFiles = [];
-      zipFiles.forEach((filename) => {
-        if (filename.endsWith(".json")) {
-          jsonFileCount++;
-        } else if (filename.match(/\.(jpg|jpeg|png)$/i)) {
-          imageFileCount++;
-        } else {
-          isValid = false;
-        }
-      });
-
-      if (jsonFileCount !== 1) {
-        isValid = false; // There must be exactly one JSON file
-      }
-
-      if (!isValid) {
-        return res.status(400).json({
-          error:
-            "ZIP archive contents are invalid. It should contain exactly one JSON file and any number of image files.",
-        });
-      }
-
-      // Process valid ZIP contents here
-      // Extract JSON and media files from the ZIP
-      for (const [filename, fileData] of Object.entries(zip.files)) {
-        if (filename.endsWith(".json")) {
-          const content = await fileData.async("string");
-          interactionData = JSON.parse(content);
-        } else {
-          // Prepare for saving media files later
-          const mediaData = await fileData.async("nodebuffer");
-          mediaFiles.push({ filename, mediaData });
-        }
-      }
-      if (!interactionData) {
-        throw new Error("No JSON file found in the ZIP archive.");
-      }
-
-      // Derive the interaction title from the ZIP file name
-      const interactionTitle = req.file.originalname
-        .replace(/_/g, " ")
-        .replace(".zip", "");
-
-      // Insert the interaction title and userId into the database
-      const submissionResult = await pool.query(
-        "INSERT INTO user_submissions (user_id, title) VALUES ($1, $2) RETURNING id",
-        [userId, interactionTitle]
+      // Process the ZIP file using the extracted function
+      const result = await processZipFile(
+        zipFilePath,
+        userId,
+        originalFileName
       );
-      const submissionId = submissionResult.rows[0].id;
-
-      // Save media files to the server and update interactionData with new paths
-      for (const { filename, mediaData } of mediaFiles) {
-        const sanitizedFilename = filename.replace("uploaded-images\\", "");
-        const fullPath = path.join(
-          __dirname,
-          "imageUploaded",
-          sanitizedFilename
-        );
-        const relativePath = `/uploaded-images/${sanitizedFilename}`;
-        // Ensure the directory exists
-        await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
-
-        // Save the media file
-        await fs.promises.writeFile(fullPath, mediaData);
-
-        // Update interactionData entries with the new file path
-        interactionData = interactionData.map((entry) => {
-          if (entry.uploaded_path && entry.uploaded_path.includes(filename)) {
-            return { ...entry, uploaded_path: relativePath }; // Ensures the use of relativePath
-          }
-          return entry;
-        });
-      }
-
-      const uniqueUserIds = [
-        ...new Set(interactionData.map((entry) => entry.posting_user_id)),
-      ];
-      // Insert unique posting_user_ids into submission_members
-      for (const postingUserId of uniqueUserIds) {
-        await pool.query(
-          "INSERT INTO submission_members (submission_id, participating_user_id) VALUES ($1, $2)",
-          [submissionId, postingUserId]
-        );
-      }
-
-      // Insert interaction data into the database
-      for (const entry of interactionData) {
-        await pool.query(
-          "INSERT INTO submission_dialog (submission_id, posting_user_id, text_content, uploaded_path, created_at) VALUES ($1, $2, $3, $4, $5)",
-          [
-            submissionId,
-            entry.posting_user_id,
-            entry.content,
-            entry.uploaded_path,
-            entry.created_at,
-          ]
-        );
-      }
-
-      //res.send({ message: 'Interaction rebuilt successfully', submissionId });
-
-      // Cleanup: Remove the uploaded ZIP file after processing
-      await util.promisify(fs.unlink)(zipFile);
-
-      // Return a JSON response indicating success
-      return res.json({
-        message: `Successfully processed ZIP file with ${jsonFileCount} JSON file and ${imageFileCount} image files.`,
-      });
+      res.json(result);
     } catch (error) {
       console.error("Error processing ZIP file:", error);
-      return res.status(500).json({
+      res.status(500).json({
         error: "Error processing ZIP file.",
       });
     }
   }
 );
+
+async function newUserAdminMessage(userId, title) {
+  const zipFilePath = path.join(__dirname, "Welcome_newAdmin.zip");
+  const originalFileName = title;
+  // Ensure the file exists
+  if (!fs.existsSync(zipFilePath)) {
+    throw new Error("ZIP file does not exist.");
+  }
+
+  // Process the ZIP file using the extracted function
+  const result = await processZipFile(
+    zipFilePath,
+    userId,
+    originalFileName,
+    false
+  );
+  console.log("Success:", result.message);
+  return result;
+}
 
 async function deleteExpiredInteractions() {
   await pool.query("BEGIN");
@@ -1982,27 +2180,27 @@ app.post("/api/notify_offline_users", async (req, res) => {
 
       const getMessage = () => {
         switch (type) {
-          case 'Text':
-          case 'audio':
-          case 'picture':
+          case "Text":
+          case "audio":
+          case "picture":
             return `Hey ${username}, ${loggedInUserName} has added a ${type} post to the '${title}' interaction you are part of in the ConnectedEngaged application.\n Please login to catch up at: http://${process.env.HOST}:${process.env.PORTFORAPP}`;
-          case 'connection_accepted':
+          case "connection_accepted":
             return `Hey ${username}, ${loggedInUserName} has accepted your connection request you made in the ConnectedEngaged application.\n Please login to catch up at: http://${process.env.HOST}:${process.env.PORTFORAPP}`;
           default:
-            return 'unknown type';
+            return "unknown type";
         }
       };
 
       const getSubject = () => {
         switch (type) {
-          case 'Text':
-          case 'audio':
-          case 'picture':
+          case "Text":
+          case "audio":
+          case "picture":
             return `${loggedInUserName} has posted to ${title}`;
-          case 'connection_accepted':
+          case "connection_accepted":
             return `${loggedInUserName} has accepted your connection request`;
           default:
-            return 'unknown type';
+            return "unknown type";
         }
       };
 
@@ -2034,7 +2232,6 @@ app.post("/api/notify_offline_users", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 // Start the server
 const PORT = process.env.PORT || process.env.PROXYPORT;

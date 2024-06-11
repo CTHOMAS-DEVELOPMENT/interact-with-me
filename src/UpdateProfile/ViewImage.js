@@ -73,7 +73,7 @@ const ViewImage = ({ userId, profileVideo = "", profileImage = "" }) => {
             className="btn-sm"
             onClick={handleProfileVideo}
           >
-            {videoPath ? "Update Profile Video" : "Add Profile Video"}
+            {videoPath ? "Update Profile Video (Max 30 seconds)" : "Add Profile Video (Max 30 seconds)"}
           </Button>
         </div>
       ) : (

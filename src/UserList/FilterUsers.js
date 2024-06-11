@@ -74,9 +74,24 @@ const FilterUsers = ({ applyFilter, closeWindow }) => {
       hobbies: version1Hobbies[index] || "", // Make sure version1Hobbies is accessible here
     }));
   };
+  const svgStyle = {
+    position: "absolute",
+    left: "-40px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    animation: "float 2s ease-in-out infinite",
+  };
   return (
-    <div className="filter-users" style={{ maxWidth: "500px", margin: "0 auto", padding: "20px", overflow: "hidden" }}>
-    <input
+    <div
+      className="filter-users"
+      style={{
+        maxWidth: "500px",
+        margin: "0 auto",
+        padding: "20px",
+        overflow: "hidden",
+      }}
+    >
+      <input
         type="text"
         name="username"
         className="form-control mb-2" // Added Bootstrap classes for styling
@@ -160,14 +175,21 @@ const FilterUsers = ({ applyFilter, closeWindow }) => {
         placeholder="About You"
       />
 
-      {showButton && (
-        <Button variant="outline-info" onClick={() => applyFilter(filters)}>
-          Apply Filters
-        </Button>
-      )}
-        <Button variant="outline-info" onClick={() => closeWindow()}>
-          Close
-        </Button>
+      <div style={{ position: "relative", display: "inline-block" }}>
+        {showButton && (
+          <svg width="30" height="30" style={svgStyle}>
+            <polygon points="0,0 30,15 0,30" fill="blue" />
+          </svg>
+        )}
+        {showButton && (
+          <Button variant="outline-info" onClick={() => applyFilter(filters)}>
+            Apply Filters
+          </Button>
+        )}
+      </div>
+      <Button variant="outline-info" onClick={() => closeWindow()}>
+        Close
+      </Button>
     </div>
   );
 };

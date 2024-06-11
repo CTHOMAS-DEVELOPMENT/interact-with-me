@@ -9,6 +9,8 @@ import { extractFilename, getThumbnailPath } from "../system/utils";
 import { Button, Spinner } from "react-bootstrap";
 import {
   ArrowLeftCircleFill,
+  ArrowDownCircleFill,
+  ArrowUpCircleFill,
   Search,
   Image,
   ImageFill,
@@ -20,9 +22,12 @@ import {
   EnvelopeSlash,
   EnvelopePlusFill,
   EnvelopeSlashFill,
+  CameraVideoFill,
+  CameraVideoOffFill,
 } from "react-bootstrap-icons";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { checkAuthorization } from "../system/authService";
+import Peer from "simple-peer";
 const FeedScreen = () => {
   const [showUploader, setShowUploader] = useState(false);
   const [showMessage, setShowMessage] = useState(true);
@@ -40,14 +45,22 @@ const FeedScreen = () => {
   const [activeUsersList, setActiveUsersList] = useState([]);
   const [audioBlob, setAudioBlob] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [adminChat, setAdminChat] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
   const [loggedInUserName, setLoggedInUsername] = useState("");
-  const [notificationson, setNotificationsOn] = useState(false);//overide default
+  const [notificationson, setNotificationsOn] = useState(false); //overide default
   const [hovering, setHovering] = useState(false);
   const [alertKey, setAlertKey] = useState(0);
+  // Video call state and refs
+  const [inCall, setInCall] = useState(false);
+  const [caller, setCaller] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const peerRef = useRef(null);
+  const socketRef = useRef(null);
   const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,7 +77,53 @@ const FeedScreen = () => {
   const audioRef = useRef(new Audio());
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]); // useRef to keep the audio data across renders
-  const handleStartRecording = () => {
+  useEffect(() => {
+    const socket = io(process.env.REACT_APP_BACKEND_HOST);
+
+    socketRef.current = socket; // Save socket instance
+
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+      socket.emit("register", { userId, submissionIds: [submissionId] });
+      socket.emit("enter screen", { userId, submissionId });
+    });
+
+    socket.on("incomingCall", (data) => {
+      setCaller(data);
+      console.log("Incoming call from", data.from);
+    });
+
+    socket.on("callAccepted", (signal) => {
+      if (peerRef.current) {
+        peerRef.current.signal(signal);
+        console.log("Call accepted by the recipient");
+      }
+    });
+
+    socket.on("active users update", (activeUsers) => {
+      console.log("Active users update:", activeUsers);
+      setActiveUsersList(activeUsers);
+    });
+
+    socket.on("post update", (newPost) => {
+      const interestedUserIds = newPost.interestedUserIds;
+      console.log("Post update for users:", interestedUserIds);
+      if (interestedUserIds.includes(parseInt(userId, 10))) {
+        setUserIsLive(true);
+      }
+    });
+
+    return () => {
+      socket.emit("leave screen", { userId, submissionId });
+      socket.off("connect");
+      socket.off("incomingCall");
+      socket.off("callAccepted");
+      socket.off("active users update");
+      socket.off("post update");
+      socket.disconnect();
+    };
+  }, [userId, submissionId]);
+const handleStartRecording = () => {
     navigator.mediaDevices
       .getUserMedia({ audio: true })
       .then((stream) => {
@@ -139,22 +198,7 @@ const FeedScreen = () => {
           return response.json();
         })
         .then((data) => {
-          //This determines number of users and traps wheather this is admin interaction
-          /**
-           {
-    "id": 119,
-    "username": "Admin for PoopyPoops",
-    "title": "ADMIN_MESSAGE_3",
-    "profile_picture": "backend\\imageUploaded\\file-MAN.png"
-}
-           */
-          
-          if(data.length===2 && data[1].id - data[0].id===1 && data[1].username===`Admin for ${data[0].username}`)
-          {
-            setAdminChat(true);
-          }
-          
-          //console.log("admin interaction",data)
+
           const loggedInUser = data.find((user) => user.id === userId);
           if (loggedInUser) {
             setLoggedInUsername(loggedInUser.username);
@@ -168,37 +212,6 @@ const FeedScreen = () => {
         });
     }
   }, [submissionId, userId]);
-
-  useEffect(() => {
-    const socket = io(process.env.REACT_APP_BACKEND_HOST);
-
-    socket.on("connect", () => {
-      socket.emit("register", { userId, submissionIds: [submissionId] }); // Ensure this is needed
-      socket.emit("enter screen", { userId, submissionId });
-    });
-
-    // Update the associated users' active status when the active users update is received
-    socket.on("active users update", (activeUsers) => {
-      setActiveUsersList(activeUsers);
-    });
-    socket.on("post update", (newPost) => {
-      const interestedUserIds = newPost.interestedUserIds;
-      //console.log("interestedUserIds", interestedUserIds.join());
-      // Check if userId is in interestedUserIds and update userIsLive accordingly
-      if (interestedUserIds.includes(parseInt(userId, 10))) {
-        setUserIsLive(true);
-      }
-    });
-
-
-    return () => {
-      socket.emit("leave screen", { userId, submissionId });
-      socket.off("connect");
-      socket.off("active users update");
-      socket.off("post update");
-      socket.disconnect();
-    };
-  }, [submissionId, userId]); // Depend on submissionId and userId to re-register on changes
 
   useEffect(() => {
     if (userIsLive) {
@@ -221,17 +234,6 @@ const FeedScreen = () => {
     }
   }, [audioURL]); // This effect should run every time the audioURL changes
 
-  // useEffect(() => {
-  //   if (posts.length) {
-  //     if (associatedUsers[0].id - userId === 1) {
-  //       setAdminChat(true);
-  //     } else {
-  //       setAdminChat(
-  //         posts[posts.length - 1].username.substr(0, 9) === "Admin for"
-  //       );
-  //     }
-  //   }
-  // }, [posts]);
   useEffect(() => {
     if (userId) {
       fetch(`/api/users/${userId}/profile-picture`)
@@ -309,6 +311,7 @@ const FeedScreen = () => {
       fetchPosts();
     }
   }, [submissionId]);
+
   useEffect(() => {
     // Add the class to body
     document.body.classList.add("feed-displacement");
@@ -321,6 +324,7 @@ const FeedScreen = () => {
       document.body.classList.remove("feed-displacement");
     };
   }, []);
+
   if (authError) {
     // You could also use navigate("/login") here if you prefer redirection over rendering a message
     return (
@@ -388,12 +392,12 @@ const FeedScreen = () => {
       postTypeForEmail("audio");
       setMessage("Upload audio successful!");
       setType("info");
-      setAlertKey(prevKey => prevKey + 1);
+      setAlertKey((prevKey) => prevKey + 1);
     } catch (error) {
       //console.error("Error uploading audio:", error);
       setMessage("Upload failed!");
       setType("error");
-      setAlertKey(prevKey => prevKey + 1);
+      setAlertKey((prevKey) => prevKey + 1);
       //setUploadStatus("Upload failed!");
     } finally {
       setIsUploading(false);
@@ -401,12 +405,127 @@ const FeedScreen = () => {
   };
 
   const checkUserIsInActiveList = (user_id, activeUsersList) => {
-    if (adminChat) return "active";
     return activeUsersList.includes(user_id) ? "active" : "";
   };
 
   const validateUploadedSoundFile = (path) => {
     return /\.(mp3|wav|ogg)$/i.test(path); // Case-insensitive check for common audio formats
+  };
+  const handleScrollToBottom = () => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: "smooth",
+    });
+  };
+  const handleScrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+  const startVideoCall = () => {
+    setInCall(true);
+  
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+  
+      const peer = new Peer({
+        initiator: true,
+        trickle: false,
+        stream: stream,
+      });
+  
+      peer.on("signal", (data) => {
+        
+        socketRef.current.emit("callUser", {
+          userToCall: selectedUserId,
+          signalData: data,
+          from: userId,
+        });
+      });
+  
+      peer.on("stream", (stream) => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+        }
+      });
+  
+      peer.on("close", () => {
+        endCall();
+      });
+  
+      socketRef.current.on("callAccepted", (signal) => {
+        peer.signal(signal);
+      });
+  
+      peerRef.current = peer;
+    });
+  };
+
+  const answerCall = () => {
+    setInCall(true);
+  
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+  
+      const peer = new Peer({
+        initiator: false,
+        trickle: false,
+        stream: stream,
+      });
+  
+      peer.on("signal", (data) => {
+        socketRef.current.emit("acceptCall", {
+          signal: data,
+          to: caller.from,
+        });
+      });
+  
+      peer.on("stream", (stream) => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+        }
+      });
+  
+      peer.on("close", () => {
+        endCall();
+      });
+  
+      peer.signal(caller.signal);
+      peerRef.current = peer;
+    });
+  };
+
+  const endCall = () => {
+    setInCall(false);
+    setCaller(null);
+    setSelectedUserId(null);
+    if (peerRef.current) {
+      peerRef.current.destroy();
+    }
+    if (localVideoRef.current && localVideoRef.current.srcObject) {
+      localVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+    }
+    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+      remoteVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+    }
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+    peerRef.current = null;
+    socketRef.current = null;
+  };
+  const handleUserCheckboxChange = (event) => {
+    event.preventDefault();
+    event.stopPropagation(); // Prevents the event from bubbling up
+    const userId = parseInt(event.target.value, 10);
+    setSelectedUserId((prevSelectedUserId) =>
+      prevSelectedUserId === userId ? null : userId
+    );
   };
 
   return (
@@ -424,31 +543,38 @@ const FeedScreen = () => {
           >
             <ArrowLeftCircleFill size={25} />
           </Button>
-          <div
-            className="interaction-icons"
-            onClick={() => {
-              handleBackToMessagesClick();
-            }}
-          >
+          <div>
             <div className="interaction-icons">
               {associatedUsers.map((user) => (
-                <img
-                  key={user.id}
-                  src={`${process.env.REACT_APP_IMAGE_HOST}/${
-                    process.env.REACT_APP_IMAGE_FOLDER
-                  }/thumb-${extractFilename(user.profile_picture)}`}
-                  alt={user.username}
-                  className={`post-profile-image ${checkUserIsInActiveList(
-                    user.id,
-                    activeUsersList
-                  )}`}
-                />
+                <div key={user.id} className="user-container">
+                  <img
+                    src={`${process.env.REACT_APP_IMAGE_HOST}/${
+                      process.env.REACT_APP_IMAGE_FOLDER
+                    }/thumb-${extractFilename(user.profile_picture)}`}
+                    alt={user.username}
+                    className={`post-profile-image ${checkUserIsInActiveList(
+                      user.id,
+                      activeUsersList
+                    )}`}
+                  />
+                  <div className="user-info">
+                    <label className="font-style-4">
+                      <input
+                        type="checkbox"
+                        value={user.id}
+                        checked={selectedUserId === user.id}
+                        onChange={handleUserCheckboxChange}
+                      />
+                      {user.username}
+                    </label>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
 
           <div className="search-container">
-          <Button
+            <Button
               variant="outline-info"
               onMouseEnter={() => setHovering(true)}
               onMouseLeave={() => setHovering(false)}
@@ -483,6 +609,13 @@ const FeedScreen = () => {
                 onChange={handleSearchChange}
               />
             )}
+            <Button
+              variant="outline-info"
+              className="btn-icon"
+              onClick={handleScrollToBottom}
+            >
+              <ArrowDownCircleFill size={25} />
+            </Button>
           </div>
         </div>
         <h2 className="header-title font-style-4">{title}</h2>
@@ -540,7 +673,6 @@ const FeedScreen = () => {
               <TextEntry
                 userId={userId}
                 submissionId={submissionId}
-                adminChatId={adminChat ? userId + 1 : 0}
                 onPostSubmit={() => {
                   postTypeForEmail("Text");
                 }}
@@ -596,9 +728,29 @@ const FeedScreen = () => {
               >
                 {isImageHovered ? <ImageFill size={25} /> : <Image size={25} />}
               </Button>
+              {!inCall ? (
+                <Button
+                  variant="outline-info"
+                  className="btn-icon"
+                  onClick={startVideoCall}
+                  disabled={!selectedUserId}
+                >
+                  <CameraVideoFill size={25} />
+                </Button>
+              ) : (
+                <Button
+                  variant="outline-danger"
+                  className="btn-icon"
+                  onClick={endCall}
+                >
+                  <CameraVideoOffFill size={25} />
+                </Button>
+              )}
             </div>
           </div>
-          {message && <AlertMessage key={alertKey} message={message} type={type} />}
+          {message && (
+            <AlertMessage key={alertKey} message={message} type={type} />
+          )}
         </>
       )}
       {/* List of combined posts*/}
@@ -700,6 +852,36 @@ const FeedScreen = () => {
           )}
         </div>
       ))}
+      <Button
+        variant="outline-info"
+        className="btn-icon btn-fixed-bottom"
+        onClick={handleScrollToTop}
+        style={{
+          position: "fixed",
+          bottom: "20px",
+          right: "20px",
+          zIndex: 1000,
+        }}
+      >
+        <ArrowUpCircleFill size={25} />
+      </Button>
+      {inCall && (
+        <div className="video-call-container">
+          <video ref={localVideoRef} autoPlay muted className="local-video" />
+          <video ref={remoteVideoRef} autoPlay className="remote-video" />
+        </div>
+      )}
+      {caller && !inCall && (
+        <div className="incoming-call">
+          <p>Incoming call from {caller.from}</p>
+          <Button variant="outline-info" onClick={answerCall}>
+            Answer
+          </Button>
+          <Button variant="outline-danger" onClick={endCall}>
+            Decline
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

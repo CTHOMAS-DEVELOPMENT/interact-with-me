@@ -8,7 +8,7 @@ import ConnectionRequests from "./ConnectionRequests";
 import ConnectionRequested from "./ConnectionRequested";
 import ScrollingHelpText from "../system/ScrollingHelpText";
 import FilterUsers from "./FilterUsers";
-import { Button } from "react-bootstrap";
+import { Button, Pagination, Form } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { Trash, TrashFill } from "react-bootstrap-icons";
 import { checkAuthorization } from "../system/authService"; // Ensure the path is correct
@@ -34,8 +34,11 @@ const UsersList = () => {
 
   const [activeTab, setActiveTab] = useState("Interactions");
   const [lastSelectedUserId, setLastSelectedUserId] = useState(null);
-  const [notificationson, setNotificationsOn] = useState(false);//overide default
-
+  const [notificationson, setNotificationsOn] = useState(false); //overide default
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 5;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showSearch, setShowSearch] = useState(true);
   const helpMessage =
     process.env.REACT_APP_COMMUNICATION_CENTRE_HELP ||
     "No help message configured.";
@@ -201,7 +204,6 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
         //console.log("loggedInUserId-data.user_two_id", data.user_two_id);
         fetchConnectedUsers();
         //The connection requested by userId=84 has been accepted by userId=149
-        
       }
       /*On the requester id machine send email to herself that her 
       connection request has been accepted*/
@@ -210,14 +212,11 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
         //console.log("**users",users);
         fetchConnectionRequests();
         setShowConnectionRequests(false);
-   
       }
     });
     socket.on("connection_requests_change", (data) => {
       //console.log("connection_requests_change", data);
-      if(data.requested_id===loggedInUserId)
-
-      fetchConnectionRequested()
+      if (data.requested_id === loggedInUserId) fetchConnectionRequested();
     });
 
     return () => {
@@ -263,7 +262,9 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
       }
       return newSet;
     });
-
+    // Clear the search input and hide the search bar
+    setSearchTerm("");
+    setShowSearch(false);
     // Update the selectedUsernames state
     setSelectedUsernames((prev) => {
       const index = prev.indexOf(username);
@@ -375,22 +376,27 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
       }, // Passing loggedInUserId to NewSubmission
     });
   };
-  const informConnectionSuccess = async (selectedUserIds, selectedUserNames) => {
+  const informConnectionSuccess = async (
+    selectedUserIds,
+    selectedUserNames
+  ) => {
     // Ensure both arrays have the same length
     if (selectedUserIds.length !== selectedUserNames.length) {
-      console.error("Selected user IDs and names arrays do not match in length.");
+      console.error(
+        "Selected user IDs and names arrays do not match in length."
+      );
       return;
     }
-   
+
     if (!notificationson) {
       return;
     }
-  
+
     const associatedUsers = selectedUserIds.map((id, index) => ({
       id: id,
       username: selectedUserNames[index],
     }));
-  
+
     try {
       for (let i = 0; i < associatedUsers.length; i++) {
         const response = await fetch("/api/notify_offline_users", {
@@ -405,11 +411,11 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
             associatedUsers: [associatedUsers[i]], // Send one user at a time
           }),
         });
-  
+
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
-  
+
         const result = await response.json();
         console.log("Notification sent successfully:", result);
       }
@@ -417,38 +423,44 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
       console.error("Error sending notification:", error);
     }
   };
-  
-  const enableSelectedConnections = async (selectedUserIds, selectedUserNames) => {
+
+  const enableSelectedConnections = async (
+    selectedUserIds,
+    selectedUserNames
+  ) => {
     setShowRequestsFromOthers(false);
-  
+
     // Prepare the data to be sent in the request body
     const requestData = { selectedUserIds };
-  
+
     try {
-      const response = await fetch(`/api/enable-selected-connections/${loggedInUserId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestData),
-      });
-  
+      const response = await fetch(
+        `/api/enable-selected-connections/${loggedInUserId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestData),
+        }
+      );
+
       if (!response.ok) {
         // If the server response is not OK, throw an error
         throw new Error("Network response was not ok");
       }
-  
+
       const data = await response.json(); // Assuming the server responds with JSON
-  
+
       // Handle the successful response here
       console.log("Connections successfully enabled:", data);
-  
+
       try {
         await informConnectionSuccess(selectedUserIds, selectedUserNames);
       } catch (error) {
         console.error("Error in informConnectionSuccess:", error);
       }
-  
+
       fetchConnectedUsers();
       // You may want to update your component's state based on the successful operation
       // For example, clear selectedUserIds or show a success message
@@ -457,7 +469,7 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
       // Optionally, update your UI to indicate the error to the user
     }
   };
-  
+
   const fetchConnectedUsers = () => {
     if (!authError && loggedInUserId) {
       fetch(`/api/connected/${loggedInUserId}`)
@@ -467,7 +479,6 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
           const dbUserlist = data.filter((user) => user.id !== loggedInUserId);
           setUser(loggedInUser);
           setUsers(dbUserlist);
-
         })
         .catch((error) => console.error("Error fetching users:", error));
     }
@@ -497,6 +508,21 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
   const buttonStyle = {
     animation: "pulse 2s infinite",
   };
+
+  // Pagination logic
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  // Search filter logic
+  const filteredUsers = users.filter((user) =>
+    user.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const displayedUsers = searchTerm.length >= 3 ? filteredUsers : currentUsers;
+
   return (
     <div>
       {showMessage && (
@@ -545,10 +571,19 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
               <div style={{ display: "flex", justifyContent: "center" }}>
                 <ScrollingHelpText message={helpMessage} width="400px" />
               </div>
-            </div>
+              {showSearch && (
+                <Form.Group controlId="search">
+                  <Form.Control
+                    type="text"
+                    placeholder="Search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </Form.Group>
+              )}            </div>
             <div className="users-list-container">
               <ul className="no-bullet">
-                {users.map((user) => (
+              {displayedUsers.map((user) => (
                   <li key={user.id} className="user-item">
                     <div className="user-info-container center-elements">
                       <span className="user-name">{user.username}</span>
@@ -609,6 +644,18 @@ Object { id: 61, user_one_id: 84, user_two_id: 149, created_at: "2024-05-25T22:2
                   </li>
                 ))}
               </ul>
+              <Pagination>
+              {Array.from({ length: Math.ceil(users.length / usersPerPage) }, (_, index) => (
+                    <Pagination.Item
+                      key={index + 1}
+                      active={index + 1 === currentPage}
+                      onClick={() => paginate(index + 1)}
+                    >
+                      {index + 1}
+                    </Pagination.Item>
+                  )
+                )}
+              </Pagination>
             </div>
 
             <div className="button_tower">

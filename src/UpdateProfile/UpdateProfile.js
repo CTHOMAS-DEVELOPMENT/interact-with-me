@@ -163,12 +163,12 @@ const UpdateProfile = () => {
   };
   const handleSubmit = (event) => {
     event.preventDefault();
-
+  
     // Reset the message and type to ensure the component re-renders
     setMessage("");
     setType("info");
     setAlertKey((prevKey) => prevKey + 1);
-
+  
     const validationErrors = validateUser(formData, true);
     if (Object.keys(validationErrors).length === 0) {
       // No validation errors, proceed with form submission
@@ -177,7 +177,12 @@ const UpdateProfile = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       })
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Profile update failed");
+          }
+          return response.json();
+        })
         .then((data) => {
           setMessage("Profile updated successfully");
           setType("success");
@@ -185,14 +190,14 @@ const UpdateProfile = () => {
         })
         .catch((error) => {
           console.error("Update profile error:", error);
-          setMessage("Profile update failed");
+          setMessage("Profile update failed: " + error.message);
           setType("error");
           setAlertKey((prevKey) => prevKey + 1);
         });
     } else {
       // Set the first validation error message
       const firstErrorKey = Object.keys(validationErrors)[0];
-
+  
       setTimeout(() => {
         setMessage(validationErrors[firstErrorKey]);
         setType("error");
@@ -200,6 +205,7 @@ const UpdateProfile = () => {
       }, 0);
     }
   };
+  
   if (authError) {
     return <div>Unauthorized. Please log in.</div>;
   }

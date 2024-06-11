@@ -83,8 +83,10 @@ CREATE TABLE connections (
     CONSTRAINT chk_users_not_equal CHECK (user_one_id <> user_two_id)
 );
 
--- Seed data
-INSERT INTO users (username, email, password) VALUES ('Admin', 'admin@system.com', '113ab75cb112227be7e3056bc1723e67c0110c93');
+-- Seed data profile_picture='backend\imageUploaded\file-admin.JPEG'
+-- newAdmin user was id 153 in development system -Hardcode Welcome_newAdmin.zip
+-- Replace "posting_user_id": 153, accordingly
+INSERT INTO users (username, email, password, profile_picture) VALUES ('Admin', 'admin@system.com', '113ab75cb112227be7e3056bc1723e67c0110c93','backend\imageUploaded\file-admin.JPEG');
 
 -- Add to TABLES
 ALTER TABLE connection_requests ADD CONSTRAINT connection_requests_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES users(id);
@@ -98,29 +100,16 @@ ALTER TABLE connection_requests ADD CONSTRAINT connection_requests_requested_id_
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_connection_requests_status ON connection_requests(status);
 
-SELECT 
-  u.id, 
-  u.username, 
-  us.title, 
-  u.profile_picture 
-FROM 
-  submission_members sm, users u, user_submissions us 
-WHERE 
-  sm.participating_user_id = u.id AND 
-  sm.submission_id = us.id AND 
-  sm.submission_id = ? AND 
-  sm.participating_user_id != us.user_id;
 
-SELECT u.id, u.username, us.title, u.profile_picture FROM submission_members sm, users u, user_submissions us WHERE sm.participating_user_id = u.id AND sm.submission_id = us.id AND sm.submission_id = ? AND sm.participating_user_id != us.user_id;
+SELECT id, submission_id, posting_user_id, substring(text_content FROM 1 FOR 12) AS text_content FROM submission_dialog ORDER BY id desc;
 
-submission_id INTEGER REFERENCES user_submissions(id),
-    participating_user_id
+SELECT id, username FROM users ORDER BY id desc;
 
-    SELECT participating_user_id FROM submission_members WHERE submission_id = 72;
 
-$1
-SELECT u.id, u.username, us.title, u.profile_picture 
-FROM submission_members sm 
-JOIN users u ON sm.participating_user_id = u.id 
-JOIN user_submissions us ON sm.submission_id = us.id 
-WHERE sm.submission_id = $1;
+SELECT id, user_one_id, user_two_id FROM connections ORDER BY id desc
+
+SELECT us.id AS submission_id, us.title, us.user_id, u.username FROM submission_members sm, user_submissions us, users u WHERE sm.submission_id = us.id AND us.user_id = u.id AND sm.participating_user_id = 170;
+
+SELECT id, submission_id, participating_user_id FROM submission_members ORDER BY id desc
+
+SELECT id, user_id, title FROM user_submissions ORDER BY id desc;
